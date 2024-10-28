@@ -1,0 +1,483 @@
+---
+title: "Multivariate Analysis Assignment"
+subtitle: "David Lisovski - 18306686"
+format: 
+   pdf: 
+    output-file: "Assignment-STAT40150-David_Lisovski-18306686"
+    output-ext:  "pdf"
+---
+
+# Introduction
+
+In this report we look at several methods from multivariate analysis to analyze a dataset of human facial temperature measurements made using an Infrared Thermograph (IRT), a thermal imaging sensor which assesses temperature by measuring infrared radiation.
+
+<!-- IRTs are valuable for detecting infectious diseases as they offer a quick temperature check without direct contact, thus lowering the risk of spreading infections. Ensuring the accuracy of these devices against established standards is crucial, especially when they're used for screening purposes.-->
+
+The dataset contains a blend of continuous and nominal data. The initial ten columns comprise the IRT temperature readings, while the eleventh column contains the average oral temperature measurement. The subsequent three columns encompass demographic variables pertaining to the subjects. The last column denotes whether the patient's temperature is deemed elevated (Oral Temp \>37.8 Celsius).
+
+To ensure reproducibility and a unique dataset we set the random seed to my UCD student number (18306686) and selected a random subset of 1000 observations The follow R code achieves this:
+
+```{r}
+# Load Data
+Temp_data <- read.csv("Temperature_data.csv")
+# Set random seed
+set.seed(18306686)
+# Select 1000 random subsets from dataset
+sub.set <- sample(1:nrow(Temp_data), 1000)
+data <- Temp_data[sub.set,]
+```
+
+# Data Cleaning & Visualization
+
+```{r}
+#| label: tbl-data
+#| tbl-cap: "Subset of data illustrating missing values."
+#| tbl-cap-location: bottom
+# Illustate rows with  missing/NA values
+knitr::kable(data[!complete.cases(data),1:7])
+```
+
+@tbl-data illustrates a subset of the data and the first 7 predictors. Evident is the occurrence of missing values. Rows with missing/NA values were removed. Very low values of oral temperature may have indicated measurement error. We removed all observations with `aveOralM` more than 4 standard deviations below the mean. Finally we split the data into two sets, `data.pred` which contained the IRT temperature reading and average oral temperature measurement, and `data.resp` which contained demographic variables and whether the patient's temperature was deemed elevated. The following R code above achieves this:
+
+```{r}
+# Remove rows with missing/NA values
+data <- data[complete.cases(data),]
+# Convert char/binary to factor
+data$Ethnicity <- as.factor(data$Ethnicity)
+data$Age <- ordered(data$Age, levels=c("18-20", "21-25", "21-30", "26-30",
+                                       "31-40", "41-50", "51-60", ">60"))
+data$Gender <- as.factor(data$Gender)
+data$pyrexic <- as.factor(data$pyrexic)
+#Remove observations below 4 sd from mean
+m <- mean(data[,11])
+s <- sd(data[,11])
+data <- data[(m - data[,11]) > -4*s,]
+#Split into Predictors and Responses
+data.pred <- data[,1:11]
+data.resp <- data[,12:ncol(data)]
+```
+
+```{r}
+#| label: fig-corr
+#| layout-ncol: 2
+#| fig-width: 7
+#| fig-height: 7
+#| fig-cap: "Plots"
+#| fig-subcap: 
+#|   - "Pair plot"
+#|   - "Correlation matrix plot"
+#| warning: false
+library(corrplot)
+#Set colour scheme for elevated/ not elevated temperature
+col <- c("blue","red")
+cols <- col[data.resp$pyrexic]
+#Plot pair plot + correlation plot
+pairs(data.pred, pch=19, col=cols)
+corr <- as.matrix(cor(data.pred))
+corrplot(corr,
+         method = 'number', 
+         number.digits = 2)
+```
+
+@fig-corr (a) illustrates pairs plots of all predictors in the dataset coloured by whether the subject had elevated temperature (red) or not (blue). Evident in the figure is the high correlation between predictors `Max1R13_1`, `T_RC1`, `T_LC1`, `RCC1`, and `canthiMax1`. These measurements were taken around the Canthus, the corner of the eye where the upper and lower eyelids meet, so it would be expected that measurements were similar. Likewise predictors `T_FHCC1`, `T_FHLC1`, and `T_FHTC1` are highly correlated because these measurements, taken from around the forehead, are near each other. In contrast, predictors taken from regions far from each other, such as `T_FHCC1` and `aveAIIR13_1` show low-to-moderate correlation with each other. This high correlation between groups of several predictors (collinearities) suggests we can reduce the dimension of the data via appropriate techniques, such as PCA. @fig-corr (b) illustrates the plot of the correlation matrix. Evident is the high correlation between the aforementioned variables.
+
+The subsequent methods we employ to analyse the data all benefit by standardizing the data. Hence, we'll standardize the dataset using the following R code:
+
+```{r}
+# This is equivalent to replacing the variables with dimensionless quantities
+data.pred <- as.data.frame(scale(data.pred))
+```
+
+# Data Clustering
+
+In this section we employ clustering techniques to uncover structures in the data.
+
+## Hierarchical Clustering & K-means Clustering
+
+Hierarchical clustering is a heuristic technique for clustering data primarily used for visualization. It iteratively clusters observations based on a dissimilarity measure. Individual points' dissimilarity is assessed by a distance measures such as Minkowski distance or Mahattan distance whilst group dissimilarity is assessed by linkage schemes such as single, complete, or average linkage. Observations/clusters that are least dissimilar together are joined early in the iteration whilst observations/clusters that are most dissimilar are joined later in the iteration. Eventually, the method clusters all points into a single group. The grouping iterations are visualized by a dendrogram.
+
+Since observations are clustered based on distance dimensions/predictors with large variance will dominate the grouping choice. We standardize the data prevent this bias.
+
+Here we employ hierarchical clustering to the IRT dataset. The following code chunk illustrates 4 different hierarchical clustering schemes.
+
+```{r}
+#| label: fig-dend
+#| layout-ncol: 2
+#| layout-nrow: 2
+#| fig-width: 5
+#| fig-height: 7
+#| fig-cap: "Dendrogram Plots"
+#| fig-subcap: 
+#|   - "Cluster Type 1"
+#|   - "Cluster Type 2"
+#|   - "Cluster Type 3"
+#|   - "Cluster Type 4"
+# This is the best combination of clustering parameters
+# There are 2-3 distinct clusters illustrated in the dendrogram
+dend.best <- hclust(dist(data.pred, method="euclidean"), method="complete")
+plot(dend.best, xlab="Clusters", ylab="Height", main="Cluster Dendrogram 1")
+dend_best <- cutree(dend.best, k = 2)
+# Using other clustering parameters shows different clustering
+# Particularly some outlier points
+dend.t1 <- hclust(dist(data.pred, method="euclidean"), method="average")
+plot(dend.t1, xlab="Clusters", ylab="Height", main="Cluster Dendrogram 2")
+dend.t2 <- hclust(dist(data.pred, method="euclidean"), method="single")
+plot(dend.t2, xlab="Clusters", ylab="Height", main="Cluster Dendrogram 3")
+dend.t3 <- hclust(dist(data.pred, method="maximum"), method="complete")
+plot(dend.t3, xlab="Clusters", ylab="Height", main="Cluster Dendrogram 4")
+```
+
+@fig-dend illustrates four different clustering schemes.
+
+@fig-dend (a) illustrates the best clustering scheme using Euclidean distance and complete linkage. We can see the emergence of two distinct clusters, as evident by the large distance before the last two clusters are merged.
+
+@fig-dend (b) illustrates a clustering scheme based on Euclidean distance and average linkage. Evident is the appearance of an outlier, observation 1168. This scheme creates one main cluster which is not consistent with the underlying expectation of at least two clusters (elevated/not elevated temperature).
+
+@fig-dend (c) illustrates another clustering scheme based on Euclidean distance and single linkage. Evident is the emergence of long string like clusters. Observations are added one at a time to a single group resulting in string-line clusters. This makes it difficult to discern distinct clusters.
+
+@fig-dend (d) illustrates a clustering scheme based on Maximum distance and complete linkage. We can see two distinct clusters emerging, as evident by the large distance before the last two clusters are merged. One small cluster and one large cluster.
+
+From this analysis it seems there are at least two distinct clusters in the data. Now, we'll use Kmeans clustering to as an alternative clustering technique.
+
+K-means clustering partitions the data into K disjoint groups such that observations within a group are similar and observations in different groups are different. It classifies points based on their distance to each cluster's centroid. The algorithm continuously classifies points as such until no changes in membership are observed. Mathematically, it aims to minimize the within cluster sums of squares.
+
+Similar to hierarchical clustering K-means we standardize the data. Without standardizing K-means would cluster points based on dimensions/predictors with large variance. 
+
+The choice of K is found by line search. We fit K-means over some interval $k\in \{0,1,\dots,K\}$ and choose the solution that is the point of inflection of the curve of the cluster sums of squares. The following code chunk fits K-means for $K=1,2,\dots,10$ and visualizes the SS curve.
+
+```{r}
+#| label: fig-ss
+#| fig-cap: "SS By # Clusters"
+# Best KM centers between 1 and 10. We'll fit Kmeans to these number of cluster
+# And see where the 'elbow' occurs
+K <- 10
+withiness <- rep(0,K)
+#Compute one-cluster solution
+withiness[1] = (nrow(data.pred)-1) * sum(apply(data.pred, 2, var))
+for (i in 2:K) {
+  km <- kmeans(data.pred, centers=i)
+  withiness[i] <- sum(km$withinss)
+}
+#Plot shows "elbow" occuring at 2-3 clusters
+plot(withiness, type='b', col="blue", 
+     main="Sums of Squares Against Number of Clusters",
+     xlab="Number of Clusters")
+```
+
+@fig-ss illustrates the SS curve. The point of inflection occurs between $2$ and $3$ clusters. Since we found $2$ clusters when using hierarchical clustering we'll use $2$ clusters for K-means.
+
+```{r}
+#| label: fig-cluster-sol
+#| layout-ncol: 2
+#| fig-width: 7
+#| fig-height: 7
+#| fig-cap: "Cluster solution pair plots"
+#| fig-subcap: 
+#|   - "Kmeans Clustering"
+#|   - "Hierarchical Cluster"
+# Best number of clusters between 2 and 3. Hierarchical clustering told us 
+# 2 so we'll stick with 2 
+best_km <- kmeans(data.pred, centers=2)
+# Plot hierarchical and K-means cluster solutions
+col <- c("blue", "red")
+cols <- col[best_km$cluster]
+pairs(data.pred, pch=19, col=cols)
+#plot(data.pred$aveOralM, 
+#     col=cols,
+#     pch=19,
+#     ylab="Oral Temperature (std from mean)", 
+#     xlab="Observation",
+#     main="K-means Clustering"
+#)
+#legend("bottomleft",col=c("blue","red"), c("Elevated", "Normal"), 
+#       pch=19,cex=0.8)
+cols <- col[dend_best]
+pairs(data.pred, pch=19, col=cols)
+#plot(data.pred$aveOralM, 
+#     col=cols,
+#     pch=19,
+#     ylab="Oral Temperature (std from mean)", 
+#     xlab="Observation",
+#     main="Hierarchical Clustering"
+#)
+#legend("bottomleft",col=c("blue","red"), c("Normal", "Elevated"), 
+#       pch=19,cex=0.8)
+```
+
+@fig-cluster-sol illustrates pair plots of predictors by K-means and Hierarchical clustering. Points at or above 1 standard deviation from the mean were clustered into one group, whilst points at or less than the mean were clustered into another group. 
+
+Both methods classified points fairly similarly though K-means does a better job separating the groups. To quantify similarity between the two solutions we use the Rand Index, a summary measure for the correspondence between two cluster solutions. The following code chunk computes the Rand Index for K-means and hierarchical clustering
+
+```{r}
+#| warning: false
+#Library to compute class agreement
+library(e1071)
+# Create confusion matrix
+tbl <- table(best_km$cluster, cutree(dend.best, k = 2))
+# Return rand index
+classAgreement(tbl)$rand
+```
+
+The output tells us that $\sim\frac{2}{3}$ of the observations were classified the same in both solutions.
+
+## Discriminant Analysis
+
+Linear and Quadratic discriminant analysis are statistical techniques where class/label information is used to learn the structure of the data. These methods classify points based on which group the observation has maximum posterior probability $P(g|x)$. Observations are assumed to be generated by a Gaussian probability density specific to that group, $$f(x|\theta_g) = f_g(x)=\text{MVN}(\mu_g,\Sigma_g)$$ and the posterior probability is computed via Bayes' theorem \begin{align}
+P(g|x_i) &= \frac{P(x_i|g)P(g)}{\sum_{j=1}^GP(x_i|g_j)P(g_j)}\\
+         &= \frac{f_g(x)\pi_g}{\sum_{j=1}^Gf_{g_j}(x)\pi_{g_j}},
+\end{align} where $\pi_g$ is the prior distribution of group $g$ usually set to the proportion of samples in group g. For computational ease we take the logarithm of the posterior and find which group maximizes the log posterior. This leads to the following classification formula, $$\log P(g|x_i) = \log\pi_g − \frac{1}{2}\log|\Sigma_g|-\frac{1}{2}(x-\mu_g)^T\Sigma_g^{-1}(x-\mu_g)$$ where $\Sigma_g$ is the group covariance matrix and $\mu_g$ is the group mean. In linear discriminant analysis the covariance matrices are pooled into one common matrix $\Sigma_g=\Sigma ~~ \forall g$.
+
+In the IRT dataset we have several classes to choose from, such as `Gender`, `Age`, `Ethnicity` and `pyrexic`. Our focus will be to use LDA/QDA to classify subjects by gender. We'll employ leave-one-out cross-validation. This cross-validation technique fits a model to all points except one with the left-out point then used as a validation point. This procedure is then repeated until all points are used for validation. We employ this method for two reasons; Simple to implement, only requires passing the argument `CV=TRUE` into `lda`. And, this method yields an approximately unbiased estimate of the model's performance, leaving one point out should not, ideally, have a large affect on a model's predictive performance. The following R code implements the cross-validation procedure for LDA and QDA.
+
+```{r}
+#| label: tbl-conf
+#| tbl-cap: "Confusion Matrices (M=model, O=observed)"
+#| tbl-subcap: ["LDA confusion matrix", "QDA confusion matrix"]
+#| layout-ncol: 2
+#| warning: false
+#Load library for LDA and QDA
+library(MASS)
+# Perform LOOCV on LDA model
+lda.resp = lda(x=data.pred, grouping=data.resp$Gender, CV=TRUE)
+# Perform LOOCV on QDA model
+qda.resp = qda(x=data.pred, grouping=data.resp$Gender, CV=TRUE)
+# Create confusion matrix for LDA model
+tbl.lda <- table(lda.resp$class, data.resp$Gender)
+# Compute miss-classification rate of LDA model
+misclass.lda <- 1-sum(diag(tbl.lda))/sum((tbl.lda))
+# Create confusion matrix for QDA model
+tbl.qda <- table(qda.resp$class, data.resp$Gender)
+# Compute miss-classification rate of LDA model
+misclass.qda <- 1-sum(diag(tbl.qda))/sum((tbl.qda))
+rownames(tbl.lda) <- c("Female (M)", "Male (M)")
+colnames(tbl.lda) <- c("Female (O)", "Male (O)")
+rownames(tbl.qda) <- c("Female (M)", "Male (M)")
+colnames(tbl.qda) <- c("Female (O)", "Male (O)")
+knitr::kable(tbl.lda)
+knitr::kable(tbl.qda)
+```
+
+@tbl-conf illustrate contingency tables for LDA classification and true classification (a), and QDA classification and true classification (b). Both models have similar classification accuracy for Male subjects but differ in accuracy for Female subjects. LDA has a miss-classification accuracy of `r round(misclass.qda,3)` whilst QDA has a miss-classification accuracy of `r round(misclass.lda, 3)`. This suggests LDA is a better model.
+
+```{r}
+#| label: fig-lda-boundary
+#| fig-width: 6
+#| fig-height: 4
+#| fig-cap: "LDA boundaryr"
+# Compute pca for dataset and subset first two PCs
+pca.two <- prcomp(data.pred)$x[,1:2]
+# Compute lda with PCs 
+lda.resp.pca <- lda(x=as.matrix(pca.two), grouping=data.resp$Gender)
+# Function to plot boundary 
+# Source: https://rpubs.com/ZheWangDataAnalytics/DecisionBoundary
+boundary <- function(model, data, class = NULL, predict_type = "class",
+                     resolution = 100, showgrid = TRUE, col=NULL, ...) {
+  
+  if(!is.null(class)) cl <- data[,class] else cl <- 1
+  k <- length(unique(cl))
+  
+  plot(data, col = col, pch = 19, ...)
+  
+  # make grid
+  r <- sapply(data, range, na.rm = TRUE)
+  xs <- seq(r[1,1], r[2,1], length.out = resolution)
+  ys <- seq(r[1,2], r[2,2], length.out = resolution)
+  g <- cbind(rep(xs, each=resolution), rep(ys, time = resolution))
+  colnames(g) <- colnames(r)
+  g <- as.data.frame(g)
+  
+  ### guess how to get class labels from predict
+  ### (unfortunately not very consistent between models)
+  p <- predict(model, g, type = predict_type)
+  if(is.list(p)) p <- p$class
+  p <- as.factor(p)
+  
+  if(showgrid) points(g, col = as.integer(p)+1L, pch = ".")
+  
+  z <- matrix(as.integer(p), nrow = resolution, byrow = TRUE)
+  contour(xs, ys, z, add = TRUE, drawlabels = FALSE,
+          lwd = 2, levels = (1:(k-1))+.5)
+  
+  invisible(z)
+}
+col <- c("red", "blue")
+cols <- col[data.resp$Gender]
+boundary(lda.resp.pca, as.data.frame(pca.two), 
+         col = cols,main = "LDA")
+legend("topleft",col=c("red","blue"), c("Male", "Female"), pch=19,cex=0.8)
+```
+
+@fig-lda-boundary illustrates the linear decision boundary for the LDA mode using PCA to reduce the dimension of the data. Though this is not the exact illustration of the linear boundary found by the model it does give a good representation of the boundary.
+
+# Dimensionality Reduction With PCA
+
+We have seen in @fig-corr there is a high levels of multicollinearity. This suggests we can reduce the number of variables needed to explain the variability in the data. Principal component analysis (PCA) is one such technique. PCA works by finding a linear combination of uncorrelated variables $Y_1,Y_2,\dots,Y_p$ that describe the variation in the original set of correlated variables $X_1,X_2,\dots,X_p$. The uncorrelated variables $Y_j$ are called principal components. The principal components are found by the eigenvalue decomposition of the covariance matrix of correlated variables. The eigenvectors are ordered by the amount of variance they capture. The first eigenvector describes the linear combination of the variables which has greatest variance, whilst the last eigenvector describes the least variance. The corresponding eigenvalues denote the variance explained by each eigenvector.
+
+Here we apply PCA to reduce the dimension of the IRT dataset. Note that we've standardized the data. PCA can be sensitive to scale differences across variables. Standardizing ensures the data is expressed in comparable units. The following R code uses `prcomp` to computes the principal components and plots the cumulative proportion each addition principal component adds.
+
+```{r}
+#| label: fig-pca-cumprop
+#| fig-cap: "PCs by Cumulative Proportion of Variance"
+#| warning: false
+library(ggplot2)
+pca.pred <- prcomp(data.pred)
+# Compute proportion of variance explained by each PC
+pca.pred$prop <- pca.pred$sdev^2/sum(pca.pred$sdev^2)
+# Compute cumulative proportion of variance explained by each PC
+pca.pred$cumprop <- cumsum(pca.pred$prop)
+# Plot cumulative proportion 
+d.model <- data.frame(x=seq(1,length(pca.pred$prop)), y=pca.pred$cumprop)
+ggplot(d.model, aes(x=x, y=y)) +
+  geom_point()+ 
+  geom_line()+
+  scale_x_continuous(breaks = seq(1,length(d.model$x))) +
+  scale_y_continuous(breaks = round(seq(min(d.model$y), max(d.model$y)+1, 
+                                        by = 0.05),2))+
+  xlab("# Principal Components")+
+  ylab("Cumulative Variance")+
+  ggtitle("Cumulative Variance Explained by Number of PCs")
+```
+
+@fig-pca-cumprop illustrates the cumulative proportion of variance each addition PC adds. The first two principal components account for $>85\%$ of the variation in the data. The third PC only accounts for an addition $\sim5\%$ variation. This suggests the structure of the data is essentially 2 dimensional.
+
+To verify the validity of the PCA solution we can employ two methods; Jackknife or Bootstrap. We will use a Bootstrap method. We split the data into train ($0.75\%$) and test ($0.25\%$). We'll apply PCA to both sets and compute the ratio of the variances between the two solutions. If ratios are close to 1 then we know the solution is valid. The following R code illustrates the code for a Bootstrap solution. Jackknife solution is given in the Appendix.
+
+```{r}
+# Bootsrap approach
+# Sample .75% of data with replacement, compute PCA on this sample, compare
+# Variances from this smaller sample to full sample PCA
+data.new <- data.pred[sample(1:nrow(data.pred), size = round(nrow(data.pred)*0.75),
+                            replace=TRUE),]
+# Compute pca for subset
+pca.pred.new <- prcomp(data.new)
+# Compute pca for fullset
+pca.pred <- prcomp(data.pred)
+# Compute ratios of variances
+round((pca.pred$sdev^2) / (pca.pred.new$sdev^2),3)
+```
+
+The output of the code chunk illustrates the ratios for each principal component. We see all ratios are close to one. This suggests the variation captured by PCs from original data is systematic to both samples and therefore common to the underlying population.
+
+We used `prcomp` as a black-box function to compute the principal components. In the following code chunk we compute the principal components by first principals, chose the best two, we've identified 2 as sufficient to explain the varation in the data, then computed the principal component scores for each subject.
+
+```{r}
+#| label: fig-pca-scores
+#| fig-cap: "PC scores"
+#| fig-width: 6
+#| fig-height: 4
+# Compute covariance matrix
+c <- var(data.pred)
+# Eigenvector decomposition of matrix (SVD), subset to get two eigenvectors
+decomp <- eigen(c)$vectors[,1:2]
+# Compute scores (matrix multiply data * eigenvectors)
+scores <- -1*as.matrix(data.pred)%*%as.matrix(decomp)
+# Plot scores
+col <- c("blue", "red")
+cols <- col[data.resp$pyrexic]
+plot(scores, 
+     col=cols, 
+     pch=19,
+     xlab = "PC 1",
+     ylab = "PC 2",
+     main = "Principal Component Scores for Each Observation")
+legend("topleft",col=c("blue","red"), c("Normal", "Elevated"), pch=19,cex=0.8)
+```
+
+@fig-pca-scores illustrates the principal component scores for each observation colored by elevated temperature. We see a good separation of the data into two clusters. The majority of observations classed as "normal" temperature are centered around 0 or at negative values of PC 1, whilst observations with "elevated" temperature are found at large positive values of PC 1 and PC 2. The plot also suggests we may be able to get away with using 1 principal component if we wish to classify subjects by elevated temperature.
+
+# Principal Components Regression
+
+In this section we'll use principal component regression (PCR) to predict average oral temperature. PCR uses principal component analysis to reduce the dimension of a dataset before fitting a multiple linear regression model. The multiple linear regression model is given by $$Y=\beta X+ \epsilon,$$ where $\beta$ represents the vector of parameters, $X$ represents the data matrix, $\epsilon$ represents noise, and the least-squares solution is given by $$\beta=(X^TX)^{-1}X^TY.$$
+
+We've shown in @fig-corr the IRT dataset contains several correlated variables. This multicollinearity is problematic when fitting a multiple linear regression model. The matrix $X^TX$ may be singular or the parameter estimates $\hat\beta_i$ may be biased. PCR aims to solve this problem by dimensionality reduction with PCA. PCR factors a data matrix $X$ into a product of $T$, orthogonal "scores" and $P$, loadings, via $$X=TP.$$ The factorization is performed by singular value decomposition $$X=TP=U\Sigma V^T,$$ where $U,V$ are the right and left matrices of eigenvectors, and $\Sigma$ is the diagonal matrix of decreasing singular values. The singular values $\sigma_i$ encode the standard deviation (square root of variance) each PC contributes to the data. In PCR we take a subset of PCs $a$ that describe the largest variation in the data, $$X_a = T_aP_a=U_a\Sigma_aV_a^T.$$ We then regress $Y$ on, not $X$, but the reduced matrix $X_a$. This leads to the least-squares solution given by $$\beta=V_a\Sigma^{-1}_aU^T_aY.$$
+
+Before fitting a PCR model we should standardize the data. This prevents high-variance variables from dominating the solution.
+
+PCR solves the problem of singular $X^TX$ and is an OK dimensionality reduction technique. A disadvantage of PCR is that we must select the number of components that remain. This can, in theory, lead to poor predictions if we don't select enough components. Another disadvantage is the parameter estimates found by PCR do not tell us whether predictors are related or not to a response. In formulating a model we want to create the simplest model that describes the data. Since the PC are linear combinations of all predictors in the data we do not know whether any one predictor is needed or not in the model. This hinders the development of a model that relies upon a small set of the original features.
+
+## PCR on IRT dataset
+
+Here we employ principal components regression to the IRT dataset. We'll use the `pls` library in R to create the model. We'll also split the dataset into a train and test set ($0.75\%$ train, $0.25\%$ test), then apply principal components regression to the training set and evaluate the performance of the model on the test set. Since PCR uses principal components analysis, we'll use the standardized dataset. The following code loads the `pls` library and splits the dataset into a train-test set.
+
+```{r}
+#| warning: false
+# PCR library
+library(pls)
+# Choose .75 train .25 test
+N <- nrow(data.pred)
+# Note data has been standardized to prevent dimensions with large variance 
+# dominating - i.e. all variables on same scale
+tr <- sample(1:N, round(N*0.75))
+train <- data.pred[tr,]
+test <- data.pred[-tr,]
+```
+
+We've found in the previous section (PCA) two PCs are sufficient to describe the data. Here we verify this observation via cross-validation. We split the training data into 10 equal chunks. 1 chunk will be used for validation whilst the other 9 will be used to fit the model. The average Root Mean Square Error of Prediction (RMSEP) across all 10 chunks is returned for each model. The following R code applies the CV procedure and plots the results.
+
+```{r}
+#| label: fig-msep
+#| fig-cap: "PC scores"
+#| fig-height: 3
+#| fig-width: 5
+#Fit PCR model with all 10 components (PCs) - on training dataset
+yoral.pcr <- pcr(aveOralM ~ ., 10, data = train)
+# Plot RMSEP to visualize decrease of RMSEP on increasing PCs
+# Going beyond 2 components is not needed
+yoral.cv <- crossval(yoral.pcr, segments = 10)
+plot(MSEP(yoral.cv), legendpos = "topright",
+     main="Model performance per principal component")
+```
+
+Illustrated in @fig-msep is the average RMSEP after performing CV with 10 chunks. We see more than 2 PCs has no significant improvement on the model's performance.
+
+```{r}
+#| label: fig-pcr-fit
+#| layout-ncol: 2
+#| fig-width: 4
+#| fig-height: 4
+#| fig-subcap: 
+#|   - "Predicted v Measured"
+#|   - "Residuals"
+#| fig-cap: "PC scores"
+y <- test$aveOralM
+y_hat <- predict(yoral.pcr, ncomp = 2, newdata = test)
+plot(y,y_hat,pch=19,
+     xlab="Measured",
+     ylab="Predicted",
+     main="IRT dataset, 2 PCs, test data")
+lobf <- lm(y~y_hat)$coeff
+abline(a=lobf[1], b = lobf[2], col = "red", lty=1)
+abline(a=0, b = 1, col = "blue", lty=2)
+legend("topleft", col=c("red", "blue"), 
+       legend=c("Line of Best Fit", "Best Line"), lty=c(1,2))
+plot(y-y_hat, pch=19, col="black",
+     ylab="Residuals", xlab="Observation", 
+     main="PCR residuals") 
+abline(0, 0)                 
+```
+
+@fig-pcr-fit (a) illustrates the model's predictive performance on the test data. We see the true values and predicted values are not far from each other suggesting a good fit. The residuals plotted in Figure (b) are normally distributed around 0 suggesting a good fit.
+
+# Appendix
+
+Jackknife code to verify PCA generalizability.
+
+```{r}
+#| eval: false
+#Jack-knife approach
+ratios <- matrix(rep(NA, times=nrow(data.pred)*ncol(data.pred)),  
+                 nrow = nrow(data.pred))
+for (i in 1:nrow(data.pred)){
+  p <- prcomp(data.pred[-i,])
+  ratios[i,] <- p$sdev^2/pca.pred$sdev^2
+}
+colMeans(ratios[i,])
+```
+
+# Bibiliography
+
+An Introduction to Statistical Learning with Applications in R by James et al. (2021),
+
+The Elements of Statistical Learning by Hastie et al. (2017),
+
+The pls Package: Principal Component and Partial Least Squares Regression in R by Mevik and Wehrens (2007).
