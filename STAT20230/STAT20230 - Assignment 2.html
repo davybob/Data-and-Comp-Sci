@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.433">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>STAT20230 - Assignment 2</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="STAT20230 - Assignment 2_files/libs/clipboard/clipboard.min.js"></script>
+<script src="STAT20230 - Assignment 2_files/libs/quarto-html/quarto.js"></script>
+<script src="STAT20230 - Assignment 2_files/libs/quarto-html/popper.min.js"></script>
+<script src="STAT20230 - Assignment 2_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="STAT20230 - Assignment 2_files/libs/quarto-html/anchor.min.js"></script>
+<link href="STAT20230 - Assignment 2_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="STAT20230 - Assignment 2_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="STAT20230 - Assignment 2_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="STAT20230 - Assignment 2_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="STAT20230 - Assignment 2_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">STAT20230 - Assignment 2</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<section id="question-3---model-selection" class="level1">
+<h1>Question 3 - Model selection</h1>
+<section id="question-3-a" class="level2">
+<h2 class="anchored" data-anchor-id="question-3-a">Question 3 (a)</h2>
+<p>We begin by loading the dataset into R.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>crime <span class="ot">&lt;-</span><span class="fu">read.csv</span>(<span class="st">'Crimes.csv'</span>);</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>With the dataset loaded we can now test all possible subsets of the set of potential independent variables. We will use <code>olsrr</code> library and the <code>ols_step_all_possible</code> function to fit all models.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Load library</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">"olsrr"</span>);</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co">#Fit model on all covariates</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>model <span class="ot">&lt;-</span> <span class="fu">lm</span>(VR<span class="sc">~</span> ., <span class="at">data=</span>crime)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co">#Fit all possible models</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>all_fitted_models <span class="ot">&lt;-</span> <span class="fu">ols_step_all_possible</span>(model);</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>With all possible models fit we tabulate the results.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>table <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">Model =</span> all_fitted_models<span class="sc">$</span>predictors,</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>                    <span class="at">adj.R2 =</span> all_fitted_models<span class="sc">$</span>adjr,</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>                    <span class="at">AIC =</span> all_fitted_models<span class="sc">$</span>aic,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>                    <span class="at">BIC =</span> all_fitted_models<span class="sc">$</span>sbc)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>table <span class="ot">&lt;-</span> table[<span class="fu">order</span>(table<span class="sc">$</span>AIC,<span class="at">decreasing =</span> <span class="cn">FALSE</span>), , drop <span class="ot">=</span> <span class="cn">FALSE</span>];</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(table)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div id="tbl-all-models" class="anchored">
+<table class="table table-sm table-striped small">
+<caption>Table&nbsp;1: Table Of All Fitted Models And Their Information Criterions</caption>
+<colgroup>
+<col style="width: 27%">
+<col style="width: 18%">
+<col style="width: 18%">
+<col style="width: 18%">
+<col style="width: 18%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;"></th>
+<th style="text-align: left;">Model</th>
+<th style="text-align: right;">adj.R2</th>
+<th style="text-align: right;">AIC</th>
+<th style="text-align: right;">BIC</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">7</td>
+<td style="text-align: left;">MR M P</td>
+<td style="text-align: right;">0.8645242</td>
+<td style="text-align: right;">669.7249</td>
+<td style="text-align: right;">679.3840</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">4</td>
+<td style="text-align: left;">MR M</td>
+<td style="text-align: right;">0.8569988</td>
+<td style="text-align: right;">671.5556</td>
+<td style="text-align: right;">679.2829</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">1</td>
+<td style="text-align: left;">MR</td>
+<td style="text-align: right;">0.7809632</td>
+<td style="text-align: right;">692.3529</td>
+<td style="text-align: right;">698.1484</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">5</td>
+<td style="text-align: left;">MR P</td>
+<td style="text-align: right;">0.7764989</td>
+<td style="text-align: right;">694.3304</td>
+<td style="text-align: right;">702.0577</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">6</td>
+<td style="text-align: left;">M P</td>
+<td style="text-align: right;">0.5742764</td>
+<td style="text-align: right;">727.1934</td>
+<td style="text-align: right;">734.9207</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">2</td>
+<td style="text-align: left;">M</td>
+<td style="text-align: right;">0.2816104</td>
+<td style="text-align: right;">752.9293</td>
+<td style="text-align: right;">758.7248</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">3</td>
+<td style="text-align: left;">P</td>
+<td style="text-align: right;">0.2444882</td>
+<td style="text-align: right;">755.4989</td>
+<td style="text-align: right;">761.2944</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<p>We see in <a href="#tbl-all-models">Table&nbsp;1</a> a summary of AIC, BIC and <span class="math inline">\(R^2_{adj}\)</span> for all possible models.</p>
+</section>
+<section id="question-3-b" class="level2">
+<h2 class="anchored" data-anchor-id="question-3-b">Question 3 (b)</h2>
+<p>The best model according to AIC is the model with predictor(s): P.</p>
+<p>The best model according to BIC is the model with predictor(s): P.</p>
+<p>The best model according to <span class="math inline">\(R^2_{adj}\)</span> is the model with predictor(s): MR M P.</p>
+</section>
+<section id="question-3-c" class="level2">
+<h2 class="anchored" data-anchor-id="question-3-c">Question 3 (c)</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>forwardStep<span class="ot">&lt;-</span> <span class="cf">function</span>(data){</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">#Fit model with intercept</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  fit <span class="ot">&lt;-</span> <span class="fu">lm</span>(VR <span class="sc">~</span> <span class="dv">1</span>, <span class="at">data=</span>data);</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="co">#Compute model BIC</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  bic <span class="ot">&lt;-</span> <span class="fu">BIC</span>(fit);</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="co">#Get names of covariates to add into model</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  covariates <span class="ot">&lt;-</span> <span class="fu">colnames</span>(data)[<span class="sc">-</span><span class="dv">1</span>];</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">while</span> (<span class="cn">TRUE</span>) {</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    exit_c <span class="ot">=</span> <span class="cn">TRUE</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    best_model <span class="ot">=</span> fit</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    best_covariate <span class="ot">=</span> <span class="st">""</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">#Loop through covariates and add to model, one-by-one</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span>(covariate <span class="cf">in</span> covariates){</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>      <span class="co">#Update updates model with new formula! (+ -&gt; add cov, - -&gt; remove cov)</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>      new_fit <span class="ot">&lt;-</span> <span class="fu">update</span>(fit, <span class="fu">paste</span>(<span class="st">'.~.+'</span>,covariate));</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>      new_BIC <span class="ot">&lt;-</span> <span class="fu">BIC</span>(new_fit);</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>      <span class="co">#Save model with lowest BIC</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>      <span class="cf">if</span> (new_BIC <span class="sc">&lt;</span> bic){</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>        exit_c <span class="ot">=</span> <span class="cn">FALSE</span>;</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        bic <span class="ot">=</span> new_BIC;</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>        best_model <span class="ot">=</span> new_fit;</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        best_covariate <span class="ot">=</span> covariate</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>      }</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="co">#Remove covariate from list</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    covariates <span class="ot">=</span> covariates[covariates <span class="sc">!=</span> best_covariate]</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (exit_c){</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>      <span class="cf">break</span>;</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>    <span class="co">#Update model with model with lowest BIC</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    fit <span class="ot">=</span> best_model;</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">print</span>(covariates)</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>  fit </span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The above code chunk implements a forward stepwise regression using BIC. The code works as follows:</p>
+<ul>
+<li><p>We create a model with intercept only and calculate its BIC. The model is stored in <code>fit</code> and BIC stored in <code>BIC</code>.</p></li>
+<li><p>We loop through all possible one co-variate models. We add each co-variate to the intercept model one at a time and calculate the new model’s BIC. If the model with one co-variate added has a lower BIC then the old model, we store the new model’s BIC in a temporary variable <code>new_BIC</code> and the model in a temporary variable <code>new_fit</code>.</p></li>
+<li><p>On each loop we check if the next one co-variate model has lower BIC then the previous one co-variate model. If so, we update <code>new_BIC</code> and <code>new_fit</code>. After looping through all one co-variate we update the original model <code>fit</code> and <code>BIC</code>.</p></li>
+<li><p>We repeat the loop for all two co-variate models.</p></li>
+<li><p>We continue until after adding all remaining predictors to the <span class="math inline">\(i^{th}\)</span> co-variate model does not lower BIC compared to the <span class="math inline">\((i-1)^{th}\)</span> model.</p></li>
+<li><p>The final model will be the <span class="math inline">\(i-1\)</span> co-variate model.</p></li>
+</ul>
+<p>We will use our forward stepwise regression and see which model it yields.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>fsModel <span class="ot">&lt;-</span> <span class="fu">forwardStep</span>(crime)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "P"</code></pre>
+</div>
+</div>
+<p>We see in the above code chunk forward selection found the model with co-variate “P” to have lowest BIC.</p>
+</section>
+<section id="question-3-d" class="level2">
+<h2 class="anchored" data-anchor-id="question-3-d">Question 3 (d)</h2>
+<p>We can see from the previous code chunk forward stepwise regression found the best model that minimizes BIC (i.e.&nbsp;the model with “p” as predictor).</p>
+<p>Forward stepwise regression may not find the optimal model because it steps through a subset of all possible models. At each step forwards stepwise tests whether an addition of a single co-variate is significant. If a pair of correlated variables do not individually lower BIC but when added jointly lower BIC, then forward selection may miss both variables and skip a potentially better model.</p>
+<p>All possible regressions method steps through all possible models so will pick up on the joint significance and is guaranteed to find the best possible model.</p>
+</section>
+<section id="question-3-e" class="level2">
+<h2 class="anchored" data-anchor-id="question-3-e">Question 3 (e)</h2>
+<p>(SSE_1 - SEE_2)/(P_2 - P_1) / SEE_2/(n-P_2)</p>
+</section>
+</section>
+<section id="queston-4---multiple-regression" class="level1">
+<h1>Queston 4 - Multiple regression</h1>
+<p>We begin by loading the dataset into R</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>football <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">'football.csv'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<section id="question-4-a" class="level2">
+<h2 class="anchored" data-anchor-id="question-4-a">Question 4 (a)</h2>
+<p>In the following code chunk we fit a linear regression model relating the number of games won (<span class="math inline">\(y\)</span>) to the team’s passing yardage (<span class="math inline">\(x_2\)</span>), the percentage of rushing plays (<span class="math inline">\(x_7\)</span>), and the opponents’ yards rushing (<span class="math inline">\(x_8\)</span>).</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>model <span class="ot">&lt;-</span> <span class="fu">lm</span>(y<span class="sc">~</span>x2<span class="sc">+</span>x7<span class="sc">+</span>x8,<span class="at">data=</span>football)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Call:
+lm(formula = y ~ x2 + x7 + x8, data = football)
+
+Coefficients:
+(Intercept)           x2           x7           x8  
+  -1.808372     0.003598     0.193960    -0.004815  </code></pre>
+</div>
+</div>
+</section>
+<section id="question-4-b" class="level2">
+<h2 class="anchored" data-anchor-id="question-4-b">Question 4 (b)</h2>
+<p>For the fitted model we compute the sums of squares error <span class="math inline">\(SS_e\)</span>, regression <span class="math inline">\(SS_R\)</span>, and total <span class="math inline">\(SS_T\)</span>. We begin by assigning preliminary variables.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>y <span class="ot">=</span> football<span class="sc">$</span>y</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>y_hat <span class="ot">&lt;-</span> model<span class="sc">$</span>fitted.values</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>y_bar <span class="ot">&lt;-</span> <span class="fu">mean</span>(y)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The sums of squares total is computed by <span class="math inline">\(SS_T = \sum_i^n(y_i-\bar{y})^2\)</span> and is computed to be:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>SST <span class="ot">&lt;-</span> <span class="fu">sum</span>((y<span class="sc">-</span>y_bar)<span class="sc">^</span><span class="dv">2</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>SST</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 326.9643</code></pre>
+</div>
+</div>
+<p>The sums of squares of error is computed by <span class="math inline">\(SS_e = \sum_i^n(y_i-\hat{y}_i)^2\)</span> and is computed to be:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>SSE <span class="ot">&lt;-</span> <span class="fu">sum</span>((y<span class="sc">-</span>y_hat)<span class="sc">^</span><span class="dv">2</span>)</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>SSE</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 69.87</code></pre>
+</div>
+</div>
+<p>The sums of squares of regression is computed by <span class="math inline">\(SS_R = \sum_i^n(\hat{y}_i-\bar{y})^2\)</span> and is computed to be:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>SSR <span class="ot">&lt;-</span> <span class="fu">sum</span>((y_hat<span class="sc">-</span>y_bar)<span class="sc">^</span><span class="dv">2</span>)</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>SSR</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 257.0943</code></pre>
+</div>
+</div>
+<p>The relationship between <span class="math inline">\(SS_e,SS_R\)</span>, and <span class="math inline">\(SS_T\)</span> is <span class="math display">\[SS_T=SS_e+SS_R.\]</span> <span class="math inline">\(SS_e,SS_R\)</span> and <span class="math inline">\(SS_T\)</span> have the following degrees of freedom <span class="math display">\[df(SS_e)=n-p-1,\]</span> <span class="math display">\[df(SS_R)=_{df}p,\]</span> <span class="math display">\[\implies df(SS_T)=df(SS_e)+df(SS_R)=n-1\]</span> Now, we compute the mean squares of error <span class="math inline">\(MSE\)</span>, regression <span class="math inline">\(MSR\)</span>, and total <span class="math inline">\(MST\)</span>.<br>
+We begin by assigning preliminary variables.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>n<span class="ot">=</span><span class="fu">length</span>(y)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>p<span class="ot">=</span><span class="dv">3</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The mean sums of squares of error is computed by <span class="math inline">\(MSE=\frac{SSE}{n-p-1}\)</span> and is computed to be:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>MSE<span class="ot">=</span>SSE<span class="sc">/</span>(n<span class="sc">-</span>p<span class="dv">-1</span>)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>MSE</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 2.91125</code></pre>
+</div>
+</div>
+<p>The mean sums of squares of regression is computed by <span class="math inline">\(MSR=\frac{SSR}{p}\)</span> and is computed to be:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>MSR<span class="ot">=</span>SSR<span class="sc">/</span>p</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>MSR</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 85.69809</code></pre>
+</div>
+</div>
+<p>The mean sums of squares total is computed by <span class="math inline">\(MST=\frac{SST}{n-1}\)</span> and is computed to be:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>MST<span class="ot">=</span>SST<span class="sc">/</span>(n<span class="dv">-1</span>)</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>MST</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 12.10979</code></pre>
+</div>
+</div>
+</section>
+<section id="question-4-c" class="level2">
+<h2 class="anchored" data-anchor-id="question-4-c">Question 4 (c)</h2>
+<p>To test the significance of co-variates, whether they are related to the response or not, we test a sequence of hypothesis: <span class="math display">\[H_0: \beta_j=0,\,j\in\{1,2,3\}\]</span> <span class="math display">\[H_1:\beta_j \neq 0.\]</span> To test the hypothesis we compute t-values for each hypothesis. We begin by assigning preliminary variables.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Get the model matrix</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>x <span class="ot">&lt;-</span> <span class="fu">model.matrix</span>(model)</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="co">#Compute the hat matrix</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>hat <span class="ot">&lt;-</span> <span class="fu">solve</span>(<span class="fu">t</span>(x)<span class="sc">%*%</span>x)</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="co">#Compute the sample variance</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>sigma <span class="ot">&lt;-</span> MSE</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="co">#Compute the sample variance-covariance matrix</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>covar <span class="ot">&lt;-</span> sigma<span class="sc">*</span>hat</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a><span class="co">#compute degress of freedom</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> n<span class="sc">-</span>p<span class="dv">-1</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>And computing the rejection region (we’ll take a 5% confidence level <span class="math inline">\(\alpha=0.05\)</span>)</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">qt</span>(<span class="fl">0.025</span>,df)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] -2.063899</code></pre>
+</div>
+</div>
+<p>The t-test statistic for <span class="math inline">\(\hat{\beta}_1\)</span> is computed by <span class="math inline">\(t^*=\frac{\hat{\beta}_1}{\sqrt{var(\hat{\beta}_1)}}\)</span></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Extract predictor estimate </span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>beta <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(model<span class="sc">$</span>coefficients[<span class="dv">2</span>])</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="co">#Extract variance from variance-covariance matrix</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>var.beta <span class="ot">&lt;-</span> covar[<span class="dv">2</span>,<span class="dv">2</span>]</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="co">#Calculate t-test statistic</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>t.star <span class="ot">&lt;-</span> beta<span class="sc">/</span><span class="fu">sqrt</span>(var.beta)</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>t.star</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 5.17709</code></pre>
+</div>
+</div>
+<p>Since 5.18 <span class="math inline">\(&gt; 2.06\)</span> we conclude <span class="math inline">\(\beta_1\)</span> is significant at the 5% level. The t-test statistic for <span class="math inline">\(\hat{\beta}_2\)</span> is computed by <span class="math inline">\(t^*=\frac{\hat{\beta}_2}{\sqrt{var(\hat{\beta}_2)}}\)</span></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Extract predictor estimate </span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>beta <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(model<span class="sc">$</span>coefficients[<span class="dv">3</span>])</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="co">#Extract variance from variance-covariance matrix</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>var.beta <span class="ot">&lt;-</span> covar[<span class="dv">3</span>,<span class="dv">3</span>]</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="co">#Calculate t-test statistic</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>t.star <span class="ot">&lt;-</span> beta<span class="sc">/</span><span class="fu">sqrt</span>(var.beta)</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>t.star</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 2.198262</code></pre>
+</div>
+</div>
+<p>Since 2.2 <span class="math inline">\(&gt; 2.06\)</span> we conclude <span class="math inline">\(\beta_2\)</span> is significant at the 5% level.</p>
+<p>The t-test statistic for <span class="math inline">\(\hat{\beta}_3\)</span> is computed by <span class="math inline">\(t^*=\frac{\hat{\beta}_3}{\sqrt{var(\hat{\beta}_3)}}\)</span></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Extract predictor estimate </span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>beta <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(model<span class="sc">$</span>coefficients[<span class="dv">4</span>])</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="co">#Extract variance from variance-covariance matrix</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>var.beta <span class="ot">&lt;-</span> covar[<span class="dv">4</span>,<span class="dv">4</span>]</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="co">#Calculate t-test statistic</span></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>t.star <span class="ot">&lt;-</span> beta<span class="sc">/</span><span class="fu">sqrt</span>(var.beta)</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>t.star</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] -3.771036</code></pre>
+</div>
+</div>
+<p>Since 3.77 <span class="math inline">\(&gt; 2.06\)</span> we conclude <span class="math inline">\(\beta_3\)</span> is significant at the 5% level.</p>
+</section>
+<section id="question-4-d" class="level2">
+<h2 class="anchored" data-anchor-id="question-4-d">Question 4 (d)</h2>
+<p>To calculate the coefficient of determination, and its adjusted relative, we use the following formulae <span class="math display">\[R^2=1-\frac{MSE}{MST},\]</span> <span class="math display">\[R_{adj}^2 = 1 - \frac{MSE/p}{MST/(n-1)}\]</span> The following code chunk calculates <span class="math inline">\(R^2\)</span> and <span class="math inline">\(R_{adj}^2\)</span> for the fitted model.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>r.squared <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">-</span>MSE<span class="sc">/</span>MST</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>r.squared</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 0.7595953</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>adj.r.squared <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">-</span>(<span class="dv">1</span><span class="sc">-</span>r.squared)<span class="sc">*</span>(n<span class="dv">-1</span>)<span class="sc">/</span>df</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>adj.r.squared </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 0.7295447</code></pre>
+</div>
+</div>
+<p>Our model accounts for ~76% of the variation in the response <span class="math inline">\(y\)</span>. ## Question 4 (e) Let us test whether the model as a whole is significant. We will test the null hypothesis, that no co-variate is related to the response <span class="math display">\[H_0: \beta_i=0,\,\forall i\in\{1,2,3\},\]</span> against the alternative hypothesis, that at least one <span class="math inline">\(\beta_i\)</span> is different than zero <span class="math display">\[H_a: \beta_i\neq0,\,\text{for some}\,i\in\{1,2,3\}.\]</span> Our test statistic will be an F statistic computed with the following code</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>F.star <span class="ot">=</span> MSR<span class="sc">/</span>MSE</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The critical region for a significance level of <span class="math inline">\(\alpha=0.05\)</span> is computed with the following code</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>alpha <span class="ot">=</span> <span class="fl">0.05</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>F.crit <span class="ot">&lt;-</span> <span class="fu">qf</span>(alpha,df,p)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Now we’ll test whether our F statistic is larger than the critical region:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>F.star <span class="sc">&gt;</span> F.crit</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] TRUE</code></pre>
+</div>
+</div>
+<p>Since our F statistic is larger than our critical region we reject our null hypothesis. We conclude there is evidence at the 5% significance level that at least one of team’s passing yardage (x2), the percentage of rushing plays (x7), or the opponents’ yards rushing (x8) is related to the number of games won (y).</p>
+</section>
+<section id="question-4-f" class="level2">
+<h2 class="anchored" data-anchor-id="question-4-f">Question 4 (f)</h2>
+<p>We will show the coefficient of determination <span class="math inline">\(R^2\)</span> is equal to the square of the correlation coefficient between <span class="math inline">\(Y\)</span> and <span class="math inline">\(\hat{Y}\)</span>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cor</span>(y,y_hat)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 0.8867395</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sqrt</span>(r.squared)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 0.8715476</code></pre>
+</div>
+</div>
+<p>We see in the above code chunk the values differ by about 0.015.</p>
+</section>
+<section id="question-4-g" class="level2">
+<h2 class="anchored" data-anchor-id="question-4-g">Question 4 (g)</h2>
+<p>We compute a 95% confidence interval for the mean number of games won by a team when <span class="math inline">\(x_2 = 2300, x_7 = 56, x_8 = 2100\)</span>:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="fu">predict</span>(model,<span class="fu">data.frame</span>(<span class="at">x2=</span><span class="dv">2300</span>,<span class="at">x7=</span><span class="dv">56</span>,<span class="at">x8=</span><span class="dv">2100</span>), </span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>        <span class="at">interval=</span><span class="st">'confidence'</span>, <span class="at">level =</span> <span class="fl">0.95</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>       fit      lwr      upr
+1 7.216424 6.436203 7.996645</code></pre>
+</div>
+</div>
+<p>The mean number of games won is: <span class="math display">\[\mathbb{E}[Y|x_2=2300,x_7=56,x_8=2100]=7.216,\]</span> and a 95% confidence interval for the mean number of games won is: <span class="math display">\[\hat{Y}\in\,[6.44,8].\]</span></p>
+</section>
+<section id="question-4-h" class="level2">
+<h2 class="anchored" data-anchor-id="question-4-h">Question 4 (h)</h2>
+<p>We fit the following model: <span class="math display">\[Y_i=\beta_0+\beta_1(x_7)_i+\beta_2(x_{8})_{i}+\epsilon_i\]</span></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="co">#Remove x2 from full model</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>fit_new <span class="ot">&lt;-</span> <span class="fu">update</span>(model, <span class="st">'.~.-x2'</span>)</span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>p<span class="ot">=</span><span class="dv">2</span></span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>y_hat <span class="ot">&lt;-</span> fit_new<span class="sc">$</span>fitted.values</span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a><span class="co">#compute error sums of squares</span></span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a>SSE <span class="ot">&lt;-</span> <span class="fu">sum</span>((y<span class="sc">-</span>y_hat)<span class="sc">^</span><span class="dv">2</span>)</span>
+<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>SSR <span class="ot">&lt;-</span> <span class="fu">sum</span>((y_hat<span class="sc">-</span>y_bar)<span class="sc">^</span><span class="dv">2</span>)</span>
+<span id="cb47-8"><a href="#cb47-8" aria-hidden="true" tabindex="-1"></a>SSE</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 147.8981</code></pre>
+</div>
+</div>
+<p>The model’s error sums of squares is: <span class="math display">\[SS_e=147.9\]</span></p>
+</section>
+<section id="question-4-i" class="level2">
+<h2 class="anchored" data-anchor-id="question-4-i">Question 4 (i)</h2>
+<p>Let us test whether the model as a whole is significant. We will test the null hypothesis, that no co-variate is related to the response <span class="math display">\[H_0: \beta_1=\beta_2=0,\]</span> against the alternative hypothesis, that at least one <span class="math inline">\(\beta_i\)</span> is different than zero <span class="math display">\[H_a: \beta_i\neq0,\,\text{for some}\,i\in\{1,2\}.\]</span> Our test statistic will be an F statistic computed with the following code</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>MSR <span class="ot">=</span> SSR<span class="sc">/</span>p</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>MSE <span class="ot">=</span> SSE<span class="sc">/</span>(n<span class="sc">-</span>p<span class="dv">-1</span>)</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>F.star <span class="ot">=</span> MSR<span class="sc">/</span>MSE</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The critical region for a significance level of <span class="math inline">\(\alpha=0.05\)</span> is computed with the following code</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb50"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a>alpha <span class="ot">=</span> <span class="fl">0.05</span></span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a>F.crit <span class="ot">&lt;-</span> <span class="fu">qf</span>(alpha,df,p)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Now we’ll test whether our F statistic is larger than the critical region:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>F.star <span class="sc">&gt;</span> F.crit</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] TRUE</code></pre>
+</div>
+</div>
+<p>Since our F statistic is larger than our critical region we reject our null hypothesis. We conclude there is evidence at the 5% significance level that at least one of the percentage of rushing plays (<span class="math inline">\(x_7\)</span>), or the opponents’ yards rushing (<span class="math inline">\(x_8\)</span>) is related to the number of games won (<span class="math inline">\(y\)</span>).</p>
+</section>
+<section id="question-j" class="level2">
+<h2 class="anchored" data-anchor-id="question-j">Question (j)</h2>
+<p>The following code chunk calculates <span class="math inline">\(R^2\)</span> and <span class="math inline">\(R_{adj}^2\)</span> for the new model.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb53"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a>SST<span class="ot">=</span>SSR<span class="sc">+</span>SSE</span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a>MST<span class="ot">=</span>SST<span class="sc">/</span>(n<span class="dv">-1</span>)</span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a>r.squared <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">-</span>MSE<span class="sc">/</span>MST</span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a>r.squared</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 0.5114759</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb55"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a>adj.r.squared <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">-</span>(<span class="dv">1</span><span class="sc">-</span>r.squared)<span class="sc">*</span>(n<span class="dv">-1</span>)<span class="sc">/</span>df</span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a>adj.r.squared </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 0.4504103</code></pre>
+</div>
+</div>
+<p>We can see in the output of the code chunk the coefficient of determination is smaller than the previous model. Our new model has <span class="math inline">\(R^2=0.589\)</span> but our old model had <span class="math inline">\(R^2=0.76\)</span>. Even the adjusted coefficient of determination which penalizes adding co-variates to the model had a lower result <span class="math inline">\(R^2_{adj}=0.45\)</span> compared to the old model <span class="math inline">\(R_{adj}^2=0.729\)</span>. This indicates our new model accounts for less variation in the response compared with the old model. It is therefore likely <span class="math inline">\(x_2\)</span> was significantly related to the response.</p>
+</section>
+<section id="question-k" class="level2">
+<h2 class="anchored" data-anchor-id="question-k">Question (k)</h2>
+<p>We compute a 95% confidence interval for the mean number of games won by a team:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb57"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="fu">predict</span>(fit_new,<span class="fu">data.frame</span>(<span class="at">x7=</span><span class="dv">56</span>,<span class="at">x8=</span><span class="dv">2100</span>), </span>
+<span id="cb57-2"><a href="#cb57-2" aria-hidden="true" tabindex="-1"></a>        <span class="at">interval=</span><span class="st">'confidence'</span>, <span class="at">level =</span> <span class="fl">0.95</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>       fit      lwr      upr
+1 6.926243 5.828643 8.023842</code></pre>
+</div>
+</div>
+<p>The mean number of games won is: <span class="math display">\[\mathbb{E}[Y|x_2=2300,x_7=56,x_8=2100]=6.93,\]</span> and a 95% confidence interval for the mean number of games won is: <span class="math display">\[\hat{Y}\in\,[5.83,8].\]</span> We can see the length of the confidence interval for the mean number of games won has increased compared with the old model’s confidence interval. This is because the variance, which acts as an indicator for the error, is larger in the new model compared to the new model. The variation in <span class="math inline">\(Y\)</span> not accounted for in the new model (we don’t include <span class="math inline">\(x_2\)</span>) is added as error to the variance therefore increasing confidence intervals.</p>
+</section>
+<section id="question-l" class="level2">
+<h2 class="anchored" data-anchor-id="question-l">Question (l)</h2>
+<p>The removal of <span class="math inline">\(x_2\)</span> from the model has increased the model’s variance, reduced the coefficient of determination and increased confidence intervals for mean responses. This increase in the model’s error is because any variation in <span class="math inline">\(Y\)</span> accounted for by <span class="math inline">\(x_2\)</span> is not being captured by the model, rather it is transferred to the variance, the variance being an indicator of the model’s error. It is therefore likely <span class="math inline">\(x_2\)</span> was significantly related to the response and any model without this co-variate will not be able to make accurate predictions.</p>
+</section>
+</section>
+<section id="question-5" class="level1">
+<h1>Question 5</h1>
+<p>We begin by loading the dataset into R</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb59"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a>bike <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">'bikesharing.csv'</span>);</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<section id="question-5-a" class="level2">
+<h2 class="anchored" data-anchor-id="question-5-a">Question 5 (a)</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb60"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a>bike<span class="sc">$</span>mnth <span class="ot">&lt;-</span> <span class="fu">factor</span>(bike<span class="sc">$</span>mnth,</span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">unique</span>(bike<span class="sc">$</span>mnth),</span>
+<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a>                    <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">'january'</span>,<span class="st">'february'</span>,<span class="st">'march'</span>,<span class="st">'april'</span>,<span class="st">'may'</span>,</span>
+<span id="cb60-4"><a href="#cb60-4" aria-hidden="true" tabindex="-1"></a>                               <span class="st">'june'</span>,<span class="st">'july'</span>,<span class="st">'august'</span>,<span class="st">'september'</span>,<span class="st">'october'</span>,</span>
+<span id="cb60-5"><a href="#cb60-5" aria-hidden="true" tabindex="-1"></a>                               <span class="st">'november'</span>,<span class="st">'december'</span>))</span>
+<span id="cb60-6"><a href="#cb60-6" aria-hidden="true" tabindex="-1"></a>bike<span class="sc">$</span>mnth <span class="ot">&lt;-</span> <span class="fu">relevel</span>( bike<span class="sc">$</span>mnth, <span class="at">ref =</span> <span class="st">"january"</span>)</span>
+<span id="cb60-7"><a href="#cb60-7" aria-hidden="true" tabindex="-1"></a><span class="fu">levels</span>(bike<span class="sc">$</span>mnth)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> [1] "january"   "february"  "march"     "april"     "may"       "june"     
+ [7] "july"      "august"    "september" "october"   "november"  "december" </code></pre>
+</div>
+</div>
+</section>
+<section id="question-5-b" class="level2">
+<h2 class="anchored" data-anchor-id="question-5-b">Question 5 (b)</h2>
+<p>In the following code chunk we fit a linear regression model to <code>cnt</code> using <code>hum</code>, <code>windspeed</code>, <code>temp</code>, and <code>mnth</code> as predictors.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb62"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a>fit <span class="ot">&lt;-</span> <span class="fu">lm</span>(cnt <span class="sc">~</span> hum <span class="sc">+</span> windspeed <span class="sc">+</span> temp <span class="sc">+</span> mnth,<span class="at">data=</span>bike)</span>
+<span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(fit)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Call:
+lm(formula = cnt ~ hum + windspeed + temp + mnth, data = bike)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-5345.2  -997.8  -162.3  1115.5  3411.3 
+
+Coefficients:
+               Estimate Std. Error t value Pr(&gt;|t|)    
+(Intercept)    3914.561    352.443  11.107  &lt; 2e-16 ***
+hum           -4205.372    379.303 -11.087  &lt; 2e-16 ***
+windspeed     -4807.145    674.576  -7.126 2.52e-12 ***
+temp           7262.317    673.126  10.789  &lt; 2e-16 ***
+mnthfebruary     -9.116    247.020  -0.037 0.970572    
+mnthmarch       486.786    259.701   1.874 0.061281 .  
+mnthapril       757.273    287.355   2.635 0.008588 ** 
+mnthmay         892.579    336.832   2.650 0.008229 ** 
+mnthjune        202.492    385.904   0.525 0.599940    
+mnthjuly       -524.788    422.957  -1.241 0.215101    
+mnthaugust      117.049    395.509   0.296 0.767357    
+mnthseptember  1178.208    348.989   3.376 0.000775 ***
+mnthoctober    1522.113    290.321   5.243 2.08e-07 ***
+mnthnovember   1162.629    255.896   4.543 6.50e-06 ***
+mnthdecember    785.963    246.182   3.193 0.001472 ** 
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 1325 on 716 degrees of freedom
+Multiple R-squared:  0.5415,    Adjusted R-squared:  0.5325 
+F-statistic:  60.4 on 14 and 716 DF,  p-value: &lt; 2.2e-16</code></pre>
+</div>
+</div>
+</section>
+<section id="question-5-c" class="level2">
+<h2 class="anchored" data-anchor-id="question-5-c">Question 5 (c)</h2>
+<p>The output of Question 5 (b)’s code chunk shows some months related and some month not related to the number of bikes rented. We see that the months that are statistically significant are autumn/winter/spring months whilst summer months show no significance. We conclude there is indication month of the year is an important variable.</p>
+</section>
+<section id="question-5-d" class="level2">
+<h2 class="anchored" data-anchor-id="question-5-d">Question 5 (d)</h2>
+<p>The months that are statistically significant at the 5% significance level are April (<span class="math inline">\(p=0.0086\)</span>), May (<span class="math inline">\(p=0.0082\)</span>), September (<span class="math inline">\(p=0.00078\)</span>), October (<span class="math inline">\(p&lt;0.0001\)</span>), November (<span class="math inline">\(p&lt;0.0001\)</span>), and December (<span class="math inline">\(p=0.0015\)</span>). The months that are not statistically significant are February (<span class="math inline">\(p=0.97\)</span>), June (<span class="math inline">\(p=0.6\)</span>), July (<span class="math inline">\(p=0.22\)</span>), and August (<span class="math inline">\(p=0.77\)</span>).</p>
+</section>
+<section id="question-5-e" class="level2">
+<h2 class="anchored" data-anchor-id="question-5-e">Question 5 (e)</h2>
+<p>We fit the model with <code>hum=0.4</code>, <code>temp=0.3</code>, <code>windspeed=0.65</code> and compare the number of bikes rented in each month.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb64"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a>samplePred <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">hum=</span><span class="fu">rep</span>(<span class="fl">0.4</span>,<span class="dv">12</span>),<span class="at">windspeed=</span><span class="fu">rep</span>(<span class="fl">0.3</span>,<span class="dv">12</span>),<span class="at">temp=</span><span class="fu">rep</span>(<span class="fl">0.65</span>,<span class="dv">12</span>),</span>
+<span id="cb64-2"><a href="#cb64-2" aria-hidden="true" tabindex="-1"></a>                         <span class="at">mnth=</span><span class="fu">factor</span>(<span class="fu">levels</span>(bike<span class="sc">$</span>mnth)))</span>
+<span id="cb64-3"><a href="#cb64-3" aria-hidden="true" tabindex="-1"></a>table <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">predictions =</span> <span class="fu">predict</span>(fit,samplePred), <span class="at">row.names =</span> <span class="fu">levels</span>(bike<span class="sc">$</span>mnth))</span>
+<span id="cb64-4"><a href="#cb64-4" aria-hidden="true" tabindex="-1"></a>table <span class="ot">&lt;-</span> <span class="fu">t</span>(table)</span>
+<span id="cb64-5"><a href="#cb64-5" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(table,<span class="at">digits=</span><span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div id="tbl-bikes-rented" class="anchored">
+<table class="table table-sm table-striped small">
+<caption>Table&nbsp;2: Table Illustrating The Number Of Bikes Rented With hum=0.4, temp=0.3, windspeed=0.65</caption>
+<colgroup>
+<col style="width: 11%">
+<col style="width: 7%">
+<col style="width: 7%">
+<col style="width: 7%">
+<col style="width: 7%">
+<col style="width: 7%">
+<col style="width: 7%">
+<col style="width: 7%">
+<col style="width: 7%">
+<col style="width: 7%">
+<col style="width: 7%">
+<col style="width: 7%">
+<col style="width: 7%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;"></th>
+<th style="text-align: right;">january</th>
+<th style="text-align: right;">february</th>
+<th style="text-align: right;">march</th>
+<th style="text-align: right;">april</th>
+<th style="text-align: right;">may</th>
+<th style="text-align: right;">june</th>
+<th style="text-align: right;">july</th>
+<th style="text-align: right;">august</th>
+<th style="text-align: right;">september</th>
+<th style="text-align: right;">october</th>
+<th style="text-align: right;">november</th>
+<th style="text-align: right;">december</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">predictions</td>
+<td style="text-align: right;">5510.8</td>
+<td style="text-align: right;">5501.7</td>
+<td style="text-align: right;">5997.6</td>
+<td style="text-align: right;">6268</td>
+<td style="text-align: right;">6403.4</td>
+<td style="text-align: right;">5713.3</td>
+<td style="text-align: right;">4986</td>
+<td style="text-align: right;">5627.8</td>
+<td style="text-align: right;">6689</td>
+<td style="text-align: right;">7032.9</td>
+<td style="text-align: right;">6673.4</td>
+<td style="text-align: right;">6296.7</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<p><a href="#tbl-bikes-rented">Table&nbsp;2</a> illustrates the table of bikes rented for each month.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>
