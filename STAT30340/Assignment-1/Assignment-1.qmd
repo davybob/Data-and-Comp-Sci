@@ -1,0 +1,340 @@
+---
+title: "STAT30340-Assignment-1"
+subtitle: "David Lisovski, 18306686"
+format: 
+  pdf:
+    output-file: "Assignment-1-David_Lisovski-18306686"
+    output-ext:  "pdf"
+---
+
+# Introduction
+
+The majority of crimes go unreported and police recorded crimes make up a small proportion of the total crime in a country. Some crimes, such as Sexual Offences, are less likely to be reported compared with other crimes such as Theft. It is therefore more useful to analyze trends in crime data as oppose to point values. These trends can then be used to help law enforcement agencies and policy makers to better direct their resources.
+
+One such statistic of interest is the country with the most recorded offences. Knowing which country has the most recorded offences can help law enforcement agencies target their resources. But care should be taken. A country may have the most recorded offences, but that does not necessary correlate with it being the most dangerous.
+
+A recent and worrying trend is Cyber crime[^1]. Cyber crime is becoming more aggressive and confrontational. The difficulty of policing the internet has made it easier for criminals to commit crimes over the internet. The anonymity and geographical mobility of criminals acting over the internet make catching and prosecuting offenders much more difficult than traditional crimes. This has not prevented law enforcement agencies from devising and executing methodologies to reduce Cyber crimes. 
+
+It is well know that crime is correlated with socioeconomic factors such as poverty, unemployment, inequality[^2] and possibly with other offence categories. One such offence we will look at is Theft and whether it's correlated with a countries average income per person. We will also look at whether Robbery and Drug Related Offences are correlated.
+
+The ultimate aim of this report is to answer 5 pertinent questions. Which European Country had the most crime in 2021? Which country had the highest proportion of Cyber crime with respect to its total crime? Are income levels and Theft correlated? And finally, are Drug Related Offences and Robbery related? We will aim to answer these 5 questions using the most recent Euro-stat crime data set, for year 2021.
+
+[^1]: https://www.europol.europa.eu/crime-areas/cybercrime#
+[^2]: Vargas J. The impact of socioeconomic factors on crime rates. Addict Criminol. 2023;6(4):161
+
+
+# Methods
+```{r}
+#| echo: false
+#| output: false
+#Read in data set - QUESTION 1
+library(readxl)
+euroStatCrime <- read_excel('EurostatCrime2021.xlsx', skip=5, na=":")
+```
+Data was retrieved from Euro-stat's database on crime in Europe[^3]. The data set was a excel file containing the number of reported crimes, per 100,000 inhabitants, for several offence categories. There were `r nrow(euroStatCrime)` countries and `r ncol(euroStatCrime)` indicators present in the data set. These were: Intentional homicide, Attempted intentional homicide, Serious assault, Kidnapping, Rape, Sexual assault, Sexual exploitation, Robbery,	Burglary, Burglary of private residential premises, Theft, Theft of a motorized vehicle or parts thereof, Unlawful acts involving controlled drugs or precursors, Fraud, Corruption, Money laundering, and Acts against computer systems. 
+
+```{r}
+#| echo: false
+#Return data set structure and rows/columns - QUESTION 2
+str(euroStatCrime, vec.len=1)
+#Remove unnecessary rows - QUESTION 3, 4
+euroStatCrime[c("Fraud", "Money laundering")] = NULL
+filteredStatCrime <- euroStatCrime
+filteredStatCrime[c("Theft", 
+                "Theft of a motorized vehicle or parts thereof",
+                "Burglary",
+                "Burglary of private residential premises")] = NULL
+#Create new column with overall offences - QUESTION 5
+filteredStatCrime['Overall offences'] = rowSums(euroStatCrime[,2:12], na.rm=TRUE)
+```
+The data was loaded, manipulated and analysed with R. The data was loaded into R as a tibble data frame. A sample of the data and it's structure can be found in the above table.
+
+A quick look at the data shows there are offences with no recorded data. The two offences, 'Fraud' and 'Money laundering' had no data and were removed from the data set.
+
+Some countries recorded Theft and Theft of a motorized vehicle or parts thereof, and Burglary and Burglary of private residential premises separately whilst others recorded them under one offence. To compare different countries, we removed the columns involving Theft and Burglary and related offences entirely.
+
+```{r}
+#| echo: false
+#| label: tbl-missing-data
+#| tbl-cap: Countries with missing data
+#| tbl-colwidths: [60,40]
+#Get countries with missing data - QUESTION 6
+countriesWithMissing <- data.frame(
+  Country = filteredStatCrime[!complete.cases(filteredStatCrime),"Country"], 
+  `Missing Values` = rowSums(is.na(filteredStatCrime[!complete.cases(filteredStatCrime),
+                                                  2:12]))
+  )
+countriesWithMissing <- countriesWithMissing[order(countriesWithMissing$Missing.Values, 
+                                                   decreasing = TRUE),]
+knitr::kable(countriesWithMissing,
+             col.names=c("Country", "Missing Values"),
+             row.names = FALSE)
+```
+Several countries had missing data on some offences. The table @tbl-missing-data illustrates the countries with missing data. To accurately compare different countries we removed these countries from the data set. 
+
+```{r}
+#| echo: false
+#| label: tbl-filtered-data
+#| tbl-cap: Countries with no missing data
+#| tbl-colwidths: [60,40]
+filteredStatCrime <- filteredStatCrime[complete.cases(filteredStatCrime),]
+knitr::kable(filteredStatCrime[,"Country"])
+```
+Our final data set contained `r nrow(filteredStatCrime)` countries and `r ncol(filteredStatCrime)` indicator variables. Table @tbl-filtered-data illustrates the countries used in the final analysis.
+
+We added an aggregate statistic called 'Overall offences' that counts the total number of offences for each remaining country. We then used this aggregate statistic to find the country with the most reported offences.
+
+We added an aggregate statistic called 'Cybercrime proportion' that computed the proportion of total crime that was cyber related. We then used this aggregate statistic to find the country with the most reported cyber offences. 
+
+We combined the European countries crime data set with an European countries mean income data set. The European countries mean income data was retrieved from Euro-stat's database on income and living conditions in Europe[^4]. The combined data set was then used to analyze if there is a correlation between income level and Theft across all countries.
+
+Several plots were created in R using the `ggplot` package.
+
+All code can be found in the Appendix section of the report.
+
+[^3]:https://ec.europa.eu/eurostat/cache/metadata/en/crim_off_cat_esms.htm
+[^4]:https://ec.europa.eu/eurostat/cache/metadata/en/ilc_sieusilc.htm
+
+# Results
+
+## Overall level of crime in 2021 for all EU states
+
+```{r}
+#| warning: false
+#| echo: false
+#| fig-width: 7
+#| fig-height: 5
+#| label: fig-crime-boxplots
+#| fig-cap: "Box plots of each crime category"
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+euroStatCrime |> 
+  select (!c(`Attempted intentional homicide`,
+             `Burglary of private residential premises`,
+             `Theft of a motorized vehicle or parts thereof`,)) |>
+  rename(`Cyber Crime`=`Acts against computer systems`,
+         `Drug Related Crime`=`Unlawful acts involving controlled drugs or precursors`) |>
+  pivot_longer(cols = !Country, names_to="Crime", values_to="Count") |>
+  ggplot(mapping=aes(x=Crime,y=Count,fill=Crime))+
+    geom_boxplot()+ 
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+On analysis of the data set we have found the three most commonly committed crimes were Theft, Burglary, and Drug Related Crime. These by far made up the largest proportion of total crime over all countries. This is visualized in the box plots in @fig-crime-boxplots.
+
+### Cyber Crime; A worrying trend?
+
+```{r}
+#| label: tbl-cybercrime
+#| echo: false
+#| tbl-cap: Table showing countries and the proportion of total crime that is cybercrime.
+# QUESTION 1 (PART 2)
+computerStatCrime <- filteredStatCrime[,c("Country", "Acts against computer systems", "Overall offences")]
+computerStatCrime["Proportion"] = round(
+  computerStatCrime$`Acts against computer systems`
+  /
+  computerStatCrime$`Overall offences`,
+  3)
+computerStatCrime <- computerStatCrime[order(
+  computerStatCrime$Proportion,decreasing=FALSE),]
+knitr::kable(computerStatCrime)
+```
+Online crime, or cyber crime, is a relatively new offence that has seen increasing growth over the past few years, most notably during the pandemic. Our data set is from 2021 but should still give us an indication of where cyber crime is more prevalent. We can see in table @tbl-cybercrime Latvia and Ireland recorded the least amount of cyber crime and Austria recorded the most cyber crime in 2021. Latvia and Ireland are therefore at risk of an increase in cyber crime as criminals capitalize on the low report rate. 
+
+### Finland; Highest crime rate in Europe.
+
+```{r}
+#| warning: false
+#| echo: false
+#| label: fig-finland-crime
+#| fig-width: 8
+#| fig-height: 6
+#| fig-cap: "Bar plot of Finland's Crime"
+# Plot robbery against drug use - QUESTION 1 (PART 2)
+CountryMostCrime <- as.character(filteredStatCrime[filteredStatCrime$'Overall offences' == max(filteredStatCrime$'Overall offences'),"Country"])
+euroStatCrime |>
+  filter(Country == CountryMostCrime) |>
+  rename(`Drug Crime`=`Unlawful acts involving controlled drugs or precursors`,
+         `Vehicle Therft` = `Theft of a motorized vehicle or parts thereof`,
+         `Trespass` = `Burglary of private residential premises`,
+         `Cyber Crime` = `Acts against computer systems`,
+         `Attempted Murder` = `Attempted intentional homicide`) |>
+  pivot_longer(cols = !Country, names_to="Crime", values_to="Count") |>
+ggplot(aes(x=Crime, fill=Crime))+
+  geom_bar(position = "dodge",
+           stat = "identity",aes(y=Count))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylab("Reports (per 100,000 inhabitants)")
+```
+We have found that `r CountryMostCrime` has the highest crime rate in Europe. The majority of the crime in `r CountryMostCrime` is Theft. This can be seen from the bar plot in @fig-finland-crime. Whilst not present in the data set, analysis from Finland's ministry of the interior shows that Petty Theft, such as theft of a bike, make up the majority of Theft offences[^5]. The second highest reported offence is Drug Related Crime. It seems there may be a correlation between Drug Related Crime and Theft. We will analyse this further in a succeeding section.
+
+## Correlation between crime types
+Some crimes are often committed in tandem. For example, users who abuse illegal drugs are more likely to commit other offences, such as Theft or Burglary, to pay for their addiction. We will attempt to verify this conjecture by plotting Robbery and Drug Related Crime, and checking for correlation. We will also check if crimes are correlated with economic indicators, in particular average income per person.
+
+### Robbery and Drug Use; Evidence of correlation?
+
+```{r}
+#| warning: false
+#| label: fig-robbery-drugs
+#| fig-cap: "Scatter plot of Robbery against Drug Related Crimes."
+#| echo: false
+# Plot robbery against drug use - QUESTION 3 (PART 2)
+ggplot(filteredStatCrime, 
+       mapping = aes(y=Robbery,
+                     x=`Unlawful acts involving controlled drugs or precursors`,
+                     color=Country))+
+  geom_point()+
+  ylab("Drug Related Crimes (per 100,000 inhabitants)")+
+  xlab("Robbery (per 100,000 inhabitants)")
+```
+We see in @fig-robbery-drugs that there is a weak positive relationship between the number of reports of Robbery and Drug Related Crime.
+
+### Crime and Income Level; Evidence of correlation?
+
+```{r}
+#| warning: false
+#| echo: false
+#| fig-width: 8
+#| fig-height: 6
+#| label: fig-crime-income
+#| fig-cap: "Scatter plot of Robbery against Drug Related Crimes."
+
+euroStatIncome <- read_excel('EurostatMeanIncome2021.xlsx', 
+                             skip=12, 
+                             n_max=36, 
+                             col_names=c("Country","Income","t"),
+                             na=":",
+                             )[,c("Country","Income")]
+euroStatIncome <- inner_join(euroStatIncome, 
+                             euroStatCrime[,c("Country", "Theft")],
+                             by=join_by(Country==Country))
+euroStatIncome <- euroStatIncome[complete.cases(euroStatIncome$`Theft`),]
+ggplot(euroStatIncome,aes(x=Income, y=`Theft`))+
+  ylab("Theft (per 100,000 inhabitants)")+
+  xlab("Income (€)")+
+  geom_point(aes(color=`Country`))
+```
+We see in @fig-crime-income that there is a positive relationship between the average income of a country and the number of Thefts. This could be because people in high income countries have more valuable goods, making theft more appealing and profitable for criminals, than compared with low income countries.
+
+[^5]: https://intermin.fi/en/police/crime-in-finland
+
+# Summary and Conclusions
+The aim of this report was to answer 5 pertinent questions about crime. Which European Country had the most crime in 2021? We found that Finland had the most crime in 2021. The majority of the crime reported in Finland was Theft, with Drug Related Crime second. Which country had the highest proportion of Cyber crime with respect to its total crime? We found that Austria had the highest proportion of Cyber crime with respect to the total amount of reported crime. Are income levels and Theft correlated? We found a weak positive relationship between average income per person in a country and the number of reported thefts in that country. Finally, are Drug Related Crime and Robbery related? We found a weak positive relationship between the number of reported robberies and the number of reported drug related offences. 
+
+# Appendix
+Code chunk below provides the code used for loading, manipulating, analyzing and
+plotting the Euro stat crime data set.
+
+```{r}
+#| eval: false
+#| label: code 
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+#PART 1 ----------------------- #
+#Question 1
+#read excel file, skip first 5 rows, convert ':' to na
+euroStatCrime <- read_excel('EurostatCrime2021.xlsx', skip=5, na=":")
+#Question 2
+#get data set information
+str(euroStatCrime, max.level = 1)
+#Question 3
+#remove Fraud and Money Laundering
+euroStatCrime[c("Fraud", "Money laundering")] = NULL
+#Question 4
+#Create a new dataframe called filteredStatCrime
+#This will be the dataset we'll analyze for part 2.
+filteredStatCrime <- euroStatCrime
+#Remove columns Burglary, Theft, and related offences.
+filteredStatCrime[c("Theft", 
+                "Theft of a motorized vehicle or parts thereof",
+                "Burglary",
+                "Burglary of private residential premises")] = NULL
+#Question 5
+#Calculate total number of offences, disregarding na
+filteredStatCrime['Overall offences'] = rowSums(euroStatCrime[,2:12], na.rm=TRUE)
+#Question 6 (see country parameter in data.frame)
+#Calculate how many missing values each country has
+countriesWithMissing <- data.frame(
+  country = filteredStatCrime[!complete.cases(filteredStatCrime),"Country"], 
+  missingValues = rowSums(is.na(filteredStatCrime[!complete.cases(filteredStatCrime),
+                                                  2:12]))
+  )
+#Question 7
+#Remove countries with missing values
+filteredStatCrime <- filteredStatCrime[complete.cases(filteredStatCrime),]
+#Question 8
+#Get updated data set information
+str(filteredStatCrime)
+
+#PART 2 ----------------------- #
+#Question 1
+#Find which country has most reported offences
+filteredStatCrime[filteredStatCrime$`Overall offences` == 
+                  max(filteredStatCrime$`Overall offences`),"Country"]
+#return output
+#filteredStatCrime
+#Question 2
+#Create new table for cyber crime analysis
+computerStatCrime <- filteredStatCrime[,c("Country", 
+                                          "Acts against computer systems", 
+                                          "Overall offences")]
+#Add column to new table that computes proportion of total crime that is cybercrime
+#And round proportions to 3 decimal places
+computerStatCrime["Proportion"] = round(
+  computerStatCrime$`Acts against computer systems`
+  /
+  computerStatCrime$`Overall offences`,
+  3)
+#Sort by cyber crime ascending
+computerStatCrime <- computerStatCrime[order(
+  computerStatCrime$Proportion,decreasing=FALSE),]
+#Render table
+knitr::kable(computerStatCrime)
+#Question 3
+#Plot relationship between robbery and drug offences
+ggplot(filteredStatCrime, 
+       mapping = aes(y=Robbery,
+                     x=`Unlawful acts involving controlled drugs or precursors`,
+                     color=Country))+
+  geom_point()+
+  labs(title="Drugs v Robbery for various countries")+ 
+  ylab("Drug Use (per 100,000 inhabitants)")+
+  xlab("Robbery (per 100,000 inhabitants)")
+
+#PART 3 -----------#
+#Plot 1
+#Plot relationship between Theft and income
+#Load external dataset
+euroStatIncome <- read_excel('EurostatMeanIncome2021.xlsx', 
+                             skip=12, 
+                             n_max=36, 
+                             col_names=c("Country","Income","t"),
+                             na=":",
+                             )[,c("Country","Income")]
+#Combine new dataset with ikd
+euroStatIncome <- inner_join(euroStatIncome, 
+                             euroStatCrime[,c("Country", "Theft")],
+                             by=join_by(Country==Country))
+#remove all NA rows from dataset
+euroStatIncome <- euroStatIncome[complete.cases(euroStatIncome$`Theft`),]
+#Plot scatter plot
+ggplot(euroStatIncome,aes(x=Income, y=`Theft`))+
+  ylab("Theft (per 100,000 inhabitants)")+
+  xlab("Income (€)")+
+  geom_point(aes(color=`Country`))
+#Plot 2
+#Boxplot of offences to see which is most common
+euroStatCrime |> 
+  select (!c(`Attempted intentional homicide`,
+             `Burglary of private residential premises`,
+             `Theft of a motorized vehicle or parts thereof`,)) |>
+  rename(`Cyber Crime`=`Acts against computer systems`,
+         `Drug Related Crime`=`Unlawful acts involving controlled drugs or precursors`) |>
+  pivot_longer(cols = !Country, names_to="Crime", values_to="Count") |>
+  ggplot(mapping=aes(x=Crime,y=Count,fill=Crime))+
+    geom_boxplot()+ 
+    labs(title="Boxplots of each crime category")+
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
