@@ -1,0 +1,441 @@
+---
+title: "STAT40850 Assignment 4"
+subtitle: "David Lisovski - 18306686"
+format: 
+   pdf: 
+    output-file: "Assignment-4-David_Lisovski-18306686"
+    output-ext:  "pdf"
+---
+
+In this assignment we analyzed exit poll data on a referendum taking place in a country. We wanted to find the distribution of 'Yes' votes and the probability that the 'Yes' vote will win. Data was collected from $50$ constituencies localised in $5$ different regions in the country ($10$ constituencies were sampled in every region).
+
+The dataset contained the following information
+
+1.  `n_yes`: number of 'Yes' votes in each constituency,
+2.  `n_votes`: number of people surveyed in each constituency,
+3.  `constituency`: constituency indicator variable,
+4.  `region`: region indicator variable.
+
+```{r}
+#Load data
+load(url("https://acaimo.github.io/teaching/data/referendum.RData"))
+```
+
+We took a Bayesian approach to model the data. We used Hierarchical Bayesian models. We considered single-tier, two-tier, and three-tier hierarchical models.
+
+The simplest model, a pooled model or single tier model, assumes the distribution of 'Yes' votes is homogeneous, that is, there are no regional/constituency differences in voting patterns. The underlying parameter $p$ that represents the mean probability of voting 'Yes' in the country is consistent across all regions. 
+
+An alternative model assumes constituency differences in voting patterns. This is a two-level hierarchical model. Each constituency has its own underlying parameter $p_i$ that represents the probability of voting 'Yes' in a constituency (first level). Parameters are sampled from the same distribution with some parameter $\mu$ (second level) which represents the country mean probability of voting 'Yes'.
+
+The final model we considered was a three-level hierarchical model. We assume constituencies in a region follow similar voting patterns (first level) but differ between regions. That there are regional differences in voting patterns (second level) and that underlying parameters for each region $\theta_{i}$ are sampled from the same distribution with some parameter $\mu$ (third level) which represents the country mean probability of voting 'Yes'.
+
+# Question 1: Pooled Binomial Model 
+
+The first model we used was a pooled Binomial model. We used a logit transformation $\theta = \text{logit}(p)$ of $p$, the probability of voting 'Yes' in the referendum. The rational behind this transformation was it enables us to use a sampling distribution with an unconstrained co-domain such as the normal distribution. We could likewise have used a beta distribution for $\theta$ but interpreting the parameters $\alpha, \beta$ in the distribution is difficult. In contrast, the parameter $\mu$ for the normal distribution has an easy interpretation, that is, it represents the mean logit probability of voting 'Yes' i.e. the country wide probability of voting 'Yes'.
+
+This transformation remained for subsequent models
+
+The underlying parameter $\theta$ that represents the logit of voting 'Yes' is consistent across all regions. We used a normal distribution for the sampling distribution of $\theta$. We had no prior information about voting patterns hence we used a vague flat prior for the mean, centered at $\mu=0$ ($p=0.5$) with variance $5$.
+
+The pooled Binomial model with logit transformation of $p$ and a prior $\theta\sim\mathcal{N}(\mu,\sigma)$ is given by
+\begin{align}
+x_i \ | \ p \sim\text{Binomial}(n_i, p),\\
+\text{logit}(p) = \theta \sim \mathcal{N}(\mu,\sigma),\\
+\mu \sim \mathcal{N}(0 ,5),\\
+\sigma \sim \text{exp}(0.1),\\
+\text{for} \ i=1,\dots,50.
+\end{align}
+
+The following R code creates the pooled model in Stan, generates samples from the model, and computes the log-likelihood for each sample (this will be used later when comparing models).
+
+```{r}
+#| warning: false
+#| output: false
+library(rstan)
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+```
+
+```{r}
+#| warning: false
+#| output: false
+#number of samples in each constituency
+n_i <- referendum$n_votes
+#number of yes votes in each constituency
+x_i <- referendum$n_yes
+#total number of samples
+n <- length(referendum$n_votes)
+#---POOLED BINOMIAL MODEL---#
+stan_code_pooled <- 
+'
+data{
+  int<lower=0> n;
+  int<lower = 0> x_i[n];
+  int<lower = 0> n_i[n];
+}
+parameters{
+  real mu;
+  real<lower=0> sigma;
+  real theta;
+} 
+model{
+  mu ~ normal(0, 5);
+  sigma ~ exponential(1);
+  theta ~ normal(mu, sigma);
+  for (i in 1:n) {
+    //Here we use a binomial model with logit transform of p
+    x_i[i] ~ binomial_logit(n_i[i], theta);
+  }
+}
+generated quantities{
+  vector[n] log_lik;
+  vector[n] theta_i_tilde;
+  for (i in 1:n) {
+    //Here we use a binomial lpmf with logit transform of p
+    log_lik[i] = binomial_logit_lpmf(x_i[i] | n_i[i], theta);
+    theta_i_tilde[i] = normal_rng(mu, sigma);
+  }
+}
+'
+#compile model
+pooled_model <- stan_model(model_code = stan_code_pooled)
+#sample from posterior
+pooled_posterior <- sampling(pooled_model, iter = 8000, seed = 1, 
+                             data = list(n = n, 
+                                         x_i = x_i, 
+                                         n_i = n_i))
+```
+A summary of the fitted model is given in the output of the following code chunk
+```{r}
+summary(pooled_posterior, probs = c(0.025, 0.975), 
+        pars = c('mu', 'sigma'))$summary
+```
+$\hat{R}$, a diagnostic used for conveying convergence of the Markov chains used for sampling, is not $1$. This implies not all chains are sampling from the same underlying distribution. This means some of the samples are not from the correct posterior distribution. This either means we need to run the simulation for longer or, and more likely, the underlying model is not representative of the data. 
+
+The mean logit probability $\mu=-0.084 \implies p=\sigma(-0.12)=0.48$. The 95% confidence interval for the mean value is $(-2.775, 2.8) \implies (0.06,0.94)$. The confidence interval for the mean probability of voting 'yes' ranges from $\sim0$ to $\sim1$. In other words, this model is useless. It tell us nothing statistically significant about the voting preference of the country.
+
+# Question 2: Two Level Hierarchical Model 
+
+The second model we considered was a two-level hierarchical model. Each constituency has its own underlying parameter $\theta_i$ that represents the  mean probability of voting 'Yes' in a constituency (first level), but that parameters are sampled from the same distribution with some parameter $\mu$ (second level) and constant between constituency variance $\sigma^2$. This parameter $\mu$ is interpreted as the country wide mean logit of voting 'Yes'.
+
+We used a normal distribution for the sampling distribution of $\mu$ and separate normal distributions for the sampling distribution of $\theta_i$. We had no prior information about voting patterns across constituencies so we used a vague flat prior for the mean, centered at $\mu=0$ ($p=0.5$) with variance $5$. We used a small variance $\sigma^2=0.1$ for $\theta_i$ as a regularization method. 
+
+The two-level hierarchical Binomial model with logit transformation of $p_i$ and a prior $\theta_i\sim\mathcal{N}(\mu,\sigma)$ is given by
+\begin{align}
+x_j \ | \ p_j \sim\text{Binomial}(n_j, p_j),\\
+\text{logit}(p_j) = \theta_j \sim \mathcal{N}(\mu,\sigma),\\
+\mu \sim \mathcal{N}(0 ,5),\\
+\sigma \sim \text{exp}(0.01),\\
+\text{for} \ j=1,\dots,50.
+\end{align}
+
+The following R code creates the hierarchical model in Stan, generates samples from the model, and computes the log-likelihood for each sample.
+
+```{r}
+#| warning: false
+#| output: false
+#number of samples in each constituency
+n_i <- referendum$n_votes
+#number of yes votes in each constituency
+x_ij <- referendum$n_yes
+#index of constituency
+j <- referendum$constituency
+#total number of constituencies
+m <- length(table(referendum$constituency))
+#total number of samples
+n <- length(referendum$n_votes)
+#---HIERARCHICAL BINOMIAL MODEL---#
+stan_code_hierarchical <- '
+data{
+  int<lower=0> n;         
+  int<lower=0> m; //number of constituencies
+  int<lower=0, upper=m> j[n];  // assignment j for each observation i
+  int<lower=0> x_ij[n];    
+  int<lower=0> n_i[n];
+}
+parameters{
+  real mu;
+  real<lower=0> sigma;
+  real theta_j[m];
+}
+model{
+  mu ~ normal(0, 5);
+  sigma ~ exponential(0.01);
+  theta_j ~ normal(mu, sigma);
+  for (i in 1:n) {
+    x_ij[i] ~ binomial_logit(n_i[i], theta_j[ j[i] ] );
+  }
+}
+generated quantities{
+  vector[n] log_lik;
+  vector[n] theta_i_tilde;
+  for (i in 1:n) {
+    log_lik[i] = binomial_logit_lpmf(x_ij[i] | n_i[i], theta_j[ j[i] ]);
+    theta_i_tilde[i] = theta_j[ j[i] ];
+  }
+}
+'
+#compile model
+hierarchical_model <- stan_model(model_code = stan_code_hierarchical)
+#generate posterior samples
+hierarchical_posterior <- sampling(hierarchical_model, iter = 8000, seed = 1,
+                                   data = list(n = n, 
+                                               m=m,
+                                               j=j,
+                                               x_ij = x_ij, 
+                                               n_i = n_i))
+```
+A summary of the fitted model is given in the output of the following code chunk
+```{r}
+#generate summary statistics of posterior samples
+summary_hier <- summary(hierarchical_posterior, probs = c(0.025, 0.975), 
+                        pars = c('mu', 'sigma','theta_j'))$summary
+summary_data <- as.data.frame(round(summary_hier, 5))
+#compute number of constituencies voting no (97.5% prob < 0)
+voting_no <- sum(summary_data[3:nrow(summary_data),5] < 0)
+#compute number of constituencies voting no (2.5% prob > 0)
+voting_yes <- sum( summary_data[3:nrow(summary_data),4] > 0)
+#compute number of constituencies whos voting preference unknown
+voting_unknown <- sum(summary_data[3:nrow(summary_data),5] > 0 & 
+                 summary_data[3:nrow(summary_data),4] < 0)
+knitr::kable(summary_data)
+```
+$\hat{R}$, a diagnostic used for conveying convergence of the Markov chains used for sampling, is not $1$ for all samples. This suggests we either need to increase the number of iterations when sampling or re-evaluate our model. 
+
+The mean logit probability for the country wide probability of voting 'yes' is $\mu=-0.117 \implies p=\sigma(-0.117)\approx0.47$. This is the same mean value as the pooled model. The 95% confidence interval for the mean value is $(-0.31211, 0.07880) \implies (0.423,0.52)$. This is a significantly narrower confidence interval compared to the pooled model. The interval overlaps with $0.5$ which indicates there is not enough statistical evidence to determine whether 'yes' or 'no' will win. There is more evidence of a 'no' vote compared to 'yes' because more of the probability mass lies below $0.5$.
+
+Looking at individual constituencies we find `r voting_no` are, with 95% confidence and according to the model, voting no, `r voting_yes` are voting yes, and `r voting_unknown` cannot be determinant because their 95% confidence intervals overlaps with $0$.
+
+If we assume a majority vote wins, and all constituencies that are likely to vote yes will vote yes, and all constituencies likely to vote no will vote no, then, according to the model, only $4$ constituencies from the unknown group need to vote no for the referendum to fail. This is compared to $13$ must vote yes for the referendum to pass.
+
+This model assumed a homogeneity of voting preference between constituencies in different regions. This may not be a realistic assumption. There may be a regional effect on voting preferences of constituencies. We considered this regional effect in the final model.
+
+# Question 3-4: Three Level Hierarchical Model 
+
+The third model we considered was a three-level hierarchical model. Each constituency has its own underlying parameter $\theta_i$ that represents the mean probability of voting 'Yes' in a constituency (third level). These parameters are assumed to be sampled from a normal distribution with a within region mean $\mu_k$ and between constituency variance $\sigma^2$ (second level). No prior information about constituency voting patterns was assumed, so a vague flat prior was chosen ($\sigma\sim \text{exp}(2)$). The region means are also normally distributed with a constant country wide mean probability of voting 'Yes' $\mu$ and between region variance $\tau^2$ (first level). Again, no prior information about regional voting patterns was assumed, so a vague flat prior was chosen ($\tau\sim \text{exp}(2)$).
+
+The three-level hierarchical Binomial model with logit transformation of $p_i$ and a priors $\mu_i\sim\mathcal{N}(\omega,\tau), \theta_i\sim\mathcal{N}(\mu_i,\sigma)$ is given by
+\begin{align}
+x_c \ | \ p_c \sim\text{Binomial}(n_c, p_c),\\
+\text{logit}(p_c) = \theta_c\ |\ \mu_r,\sigma\sim \mathcal{N}(\mu_r,\sigma),\\
+\mu_r \sim \mathcal{N}(\mu ,\tau),\\
+\mu \sim \mathcal{N}(0, 5),\\
+\sigma \sim \text{exp}(2),\\
+\tau \sim \text{exp}(2),\\
+\text{for} \ c=1,\dots,50\ \text{and} \ r=1,\dots,5.
+\end{align}
+
+The following R code creates the three-level hierarchical model in Stan, generates samples from the model, and computes the log-likelihood for each sample.
+
+```{r}
+#| warning: false
+#| output: false
+#number of samples in each constituency
+n_i <- referendum$n_votes
+#number of yes votes in each constituency
+x_ij <- referendum$n_yes
+#index of constituency
+c <- referendum$constituency
+#index of region
+r <- referendum$region
+#total number of constituencies
+size_c <- length(table(referendum$constituency))
+#total number of regions
+size_r <- length(table(referendum$region))
+#total number of samples
+n <- length(referendum$n_votes)
+#---THREE-LEVEL HIERARCHICAL BINOMIAL MODEL---#
+stan_code_hierarchical_cr <- '
+data{
+  int<lower=0> n;         
+  int<lower=0> size_c; //number of constituencies
+  int<lower=0> size_r; //number of regions
+  // constituency assignment for each observation i
+  int<lower=0, upper=size_c> c[n];
+   // region assignment for each observation i
+  int<lower=0, upper=size_r> r[n];
+  int<lower=0> x_ij[n];
+  int<lower=0> n_i[n];
+}
+parameters{
+  //constituent differences
+  real mu_r[size_r];
+  real<lower=0> sigma;
+  //regional differences
+  real mu;
+  real<lower=0> tau;
+  //logit transforms for each constituency
+  real theta_c[size_c];
+}
+model{
+  //regional probabilities
+  mu ~ normal(0, 5);
+  tau ~ exponential(2);
+  //constituent probabilities
+  mu_r ~ normal(mu, tau);
+  sigma ~ exponential(2);
+  
+  for (i in 1:n) {
+    theta_c[c[i]] ~ normal(mu_r[ r[i] ], sigma);
+    x_ij[i] ~ binomial_logit(n_i[i], theta_c[ c[i] ]);
+  }
+}
+generated quantities{
+  vector[n] log_lik;
+  vector[n] theta_i_tilde;
+  for (i in 1:n) {
+    log_lik[i] = binomial_logit_lpmf(x_ij[i] | n_i[i], theta_c[ c[i] ]);
+    theta_i_tilde[i] = theta_c[c[i]];
+  }
+}
+'
+hierarchical_model_cr <- stan_model(model_code = stan_code_hierarchical_cr)
+hierarchical_posterior_cr <- sampling(hierarchical_model_cr, 
+                                      iter = 8000, seed = 1, 
+                                      data = list(n = n, 
+                                                  size_c = size_c,
+                                                  size_r = size_r,
+                                                  c=c,
+                                                  r=r,
+                                                  x_ij = x_ij, 
+                                                  n_i = n_i))
+```
+A summary of the fitted model is given in the output of the following code chunk
+```{r}
+summary_hier_cr <- summary(hierarchical_posterior_cr, probs = c(0.025, 0.975), 
+                        pars = c('mu', 'sigma',
+                                 'mu_r','tau','theta_c'))$summary
+summary_data_cr <- as.data.frame(round(summary_hier_cr, 5))
+#compute number of regions voting no (97.5% prob < 0)
+r_voting_no <- sum(summary_data_cr[3:7,5] < 0)
+#compute number of regions voting no (2.5% prob > 0)
+r_voting_yes <- sum( summary_data_cr[3:7,4] > 0)
+#compute number of regions whos voting preference unknown
+r_voting_unknown <- sum(summary_data_cr[3:3:7,5] > 0 & 
+                 summary_data_cr[3:3:7,4] < 0)
+#compute number of constituencies voting no (97.5% prob < 0)
+c_voting_no <- sum(summary_data_cr[8:nrow(summary_data_cr),5] < 0)
+#compute number of constituencies voting no (2.5% prob > 0)
+c_voting_yes <- sum( summary_data_cr[8:nrow(summary_data_cr),4] > 0)
+#compute number of constituencies whos voting preference unknown
+c_voting_unknown <- sum(summary_data_cr[8:nrow(summary_data_cr),5] > 0 & 
+                 summary_data_cr[8:nrow(summary_data_cr),4] < 0)
+knitr::kable(summary_data_cr)
+```
+$\hat{R}$, a diagnostic used for conveying convergence of the Markov chains used for sampling, is not $1$ for all samples. This suggests we either need to increase the number of iterations when sampling or re-evaluate our model. 
+
+The mean logit probability for the country wide probability of voting 'yes' is $\mu=-0.12 \implies p=\sigma(-0.12)\approx0.47$. This is the same mean value as the pooled model and two-level hierarchical model. This consistency between models suggests the true mean probability must lie below $0.5$.  The 95% confidence interval for the mean value is $(-0.83, 0.59) \implies (0.3,0.64)$. This is significantly wider than the two-level model but narrower than the pooled model. The interval overlaps with $0.5$ which indicates there is not enough statistical evidence to determine whether 'yes' or 'no' will win. The interval is roughly symmetric around $0.5$. 
+
+Looking at constituencies regions we find `r c_voting_no` are, with 95% confidence and according to the model, voting no, `r c_voting_yes` are voting yes, and `r c_voting_unknown` cannot be determinant because their 95% confidence intervals overlaps with $0$. These results are very similar to those modelled by the two-level model.
+
+If we look at individual regions we find `r r_voting_no` are, with 95% confidence and according to the model, voting no, `r r_voting_yes` are voting yes, and `r r_voting_unknown` cannot be determinant because their 95% confidence intervals overlaps with $0$.
+
+# Question 5: Goodness-of-Fit Check
+
+In Question 1 we considered a pooled Bayesian model to analyze voting patterns. We found the model performed poorly. It gave us no evidence for a clear 'Yes' or 'No' referendum outcome. In Question 2 and 3-4 we considered hierarchical Bayesian models. We found these models performed far better and gave us more detailed information about the referendum outcome. Here we performed posterior predictive checks on the two-level and three-level models against the data.
+```{r}
+#| warning: false
+#| output: false
+#import Bayes' plot library
+library(bayesplot)
+#define logit function
+logit <- function(p) log(p/(1-p))
+#convert probabilities into logits
+theta_i <- logit(x_ij/n_i)
+```
+
+## Goodness-of-Fit Two-Level Model
+
+```{r}
+#| warning: false
+#| label: fig-level2model
+#| layout-ncol: 2
+#| fig-cap: "Two-level model ribbon and density plot"
+#| fig-subcap: 
+#|   - "Ribbon Plot"
+#|   - "Density Plot"
+#| fig-width: 3
+#| fig-height: 3
+#extract samples from model
+theta_i_tilde <- extract(hierarchical_posterior)$theta_i_tilde
+#ribbon plot of model and data
+ppc_ribbon(theta_i, theta_i_tilde[1:1000, ], prob_outer = 0.95, 
+           alpha = 0.9, y_draw = 'points') +
+  ggplot2::xlab('Observation i') +
+  ggplot2::ylab(expression(paste(x[i]))) + 
+  legend_none()
+#density plot of model and data
+ppc_dens_overlay(theta_i, theta_i_tilde[1:1000, ]) +
+  ggplot2::xlab(expression(paste(x[i]))) +
+  ggplot2::ylab('Density') + 
+  legend_none()
+```
+@fig-level2model (a) illustrates a ribbon plot of the 95% confidence interval of the two-level hierarchical model's posterior samples at each data point. The model looks to fit the data quite well. @fig-level2model (b) illustrates a density plot of the two-level hierarchical model's posterior samples along with the data. We see the model fits the data very well. The model is able to capture almost all the variation in the data. This suggests this model is a good fit to the data.
+
+## Goodness-of-Fit Three-Level Model
+
+```{r}
+#| warning: false
+#| label: fig-level3model
+#| layout-ncol: 2
+#| fig-cap: "Three-level model ribbon and density plot"
+#| fig-subcap: 
+#|   - "Ribbon Plot"
+#|   - "Density Plot"
+#| fig-width: 3
+#| fig-height: 3
+#extract samples from model
+theta_i_tilde <- extract(hierarchical_posterior_cr)$theta_i_tilde
+#ribbon plot of model and data
+ppc_ribbon(theta_i, theta_i_tilde[1:1000, ], prob_outer = 0.95, 
+           alpha = 0.9, y_draw = 'points') +
+  ggplot2::xlab('Observation i') +
+  ggplot2::ylab(expression(paste(x[i]))) + 
+  legend_none()
+#density plot of model and data
+ppc_dens_overlay(theta_i, theta_i_tilde[1:1000, ]) +
+  ggplot2::xlab(expression(paste(x[i]))) +
+  ggplot2::ylab('Density') + 
+  legend_none()
+```
+@fig-level3model (a) illustrates a ribbon plot of the 95% confidence interval of the three-level hierarchical model's posterior samples at each data point. The model looks to fit the data quite well but is not as good as the two-level model. For example, observations $18$ and $19$ lie above the mean in the three-level model whilst the same points lie on the mean in the two-level model. Several other points are also over/under represented in the three-level model.  @fig-level3model (b) illustrates a density plot of the three-level hierarchical model's posterior samples along with the data. The model does not fit the data as smoothly as the two-level model.
+
+# Question 6: Model Comparision
+
+We've found in Question 1 the pooled Bayesian model was not sufficient to model the data. In Question 2-3 we considered hierarchical Bayesian models and found these models sufficiently modeled the data. In this part we compared the models to find which had the best predictive ability. We used LOO-CV to compare the models.
+
+The following R code compares the three models using LOO-CV
+```{r}
+#| warning: false
+#--LOO-CV--#
+library(loo)
+P_loo <- loo(pooled_posterior)
+Hl2_loo <- loo(hierarchical_posterior)
+Hl3_loo <- loo(hierarchical_posterior_cr)
+loo_compare(list('Pooled model' = P_loo,
+                 'Hierarchical two-level model' = Hl2_loo,
+                 'Hierarchical three-level model' = Hl3_loo))
+```
+The output of the above code chunk illustrates the results of LOO-CV. The three-level hierarchical model was chosen as the best predictive model whilst the pooled model was least predictive. The `p_loo` value\footnote{\url{https://mc-stan.org/loo/reference/loo-glossary.html\#pareto-k-estimates-1}} of the pooled model was `r P_loo$estimates[2]` which is greater than the number of parameters in the model (1). This indicates model misspecification, providing further evidence that the pooled model is not a good fit to the data. Both hierarchical models had `p_loo` values less than the number of parameters (two-level model p_loo `r Hl2_loo$estimates[2]` < 50, three-level model p_loo `r Hl3_loo$estimates[2]` < 55).
+
+The difference between the three-level and two-level models is not significant (elpd_diff < 2*se_diff). We cannot ascertain which model is better, but judging by the Goodness-of-Fit test we hypothesis the two-level model is a better fit.
+
+An issue we faced when comparing models were the high Pareto-k values. The plots in @fig-diagnostic illustrate diagnostic plots for each model. 
+
+There are several observations which are highly influential, which indicates potential model misspecification\footnote{\url{https://users.aalto.fi/~ave/modelselection/roaches.html}}. The posterior predictive checks we performed in Question 5 contradict a misspecification. To improve Pareto k diagnostic values we could have run the LOO-CV with moment matching importance sampling. We found this was too computationally expensive and we did not run this algorithm.
+
+```{r}
+#| warning: false
+#| label: fig-diagnostic
+#| layout-ncol: 3
+#| fig-cap: "Diagnostic Plots"
+#| fig-subcap: 
+#|   - "Pooled Model"
+#|   - "Two-Tier Model"
+#|   - "Three-Tier Model"
+#| fig-width: 4
+#| fig-height: 4
+plot(P_loo)
+plot(Hl2_loo)
+plot(Hl3_loo)
+```
