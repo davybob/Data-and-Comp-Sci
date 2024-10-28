@@ -1,0 +1,414 @@
+---
+title: "STAT40850 Assignment 3"
+subtitle: "David Lisovski - 18306686"
+format: 
+   pdf: 
+    output-file: "Assignment-3-David_Lisovski-18306686"
+    output-ext:  "pdf"
+---
+In this assignment we analyzed the relationship between alcohol content in wines grown in a region in Italy on 4 constituents found in all the types of wine. We performed Bayesian inference on 3 different linear regression models.
+
+A dataset of 178 wines grown in the same region of Italy was used. 
+
+The dataset contained 3 predictors
+
+1.  `magnesium`: Quantity of magnesium in wine (mg/L),
+2.  `color_intensity`: Brightness of wine,
+3.  `proline`: Quantity of amino acids in wine (mg/L),
+
+and the following response
+
+1. `alcohol`: Alcohol content of wine (%).
+
+```{r}
+#Load data
+load(url("https://acaimo.github.io/teaching/data/italian_wines.RData"))
+```
+
+# Question 1 (Model Formulation)
+
+We analyzed three Gaussian regression models to explain the alcohol content in wine. These models were given by
+\begin{align}
+Y_i &\sim \mathcal{N}(\mu_i = \alpha+\beta_1 \cdot X_{1i},\sigma) \ \text{Model 1},\\
+Y_i &\sim \mathcal{N}(\mu_i = \alpha+\beta_1 \cdot X_{1i}+\beta_2 \cdot X_{2i},\sigma) \ \text{Model 2},\\
+Y_i &\sim \mathcal{N}(\mu_i = \alpha+\beta_1 \cdot X_{1i}+\beta_2 \cdot X_{2i}+\beta_3 \cdot X_{3i},\sigma) \ \text{Model 3},
+\end{align}
+where $Y$ is the alcohol content, $X_{1i}$ is the magnesium content, $X_{2i}$ is the color intensity, and $X_{3i}$ is the proline content.
+
+We chose a prior distributions for $\alpha$ given by $$\alpha \sim \mathcal{N}(11.5,3)$$
+This prior was chosen as the average alcohol content in unfortified wine is $\sim11.5\%$ but can range between $5.5\%$ to $16\%$. Fortified wine has a higher range between $15.5\%$ and $25\%$\footnote{see https://www.masterclass.com/articles/learn-about-alcohol-content-in-wine-highest-to-lowest-abv-wines}. The relatively flat prior ensured we encompassed the range of alcohol content that may be found in wine.
+
+We could not find any information about the relationship between the predictors and alcohol content. We made the assumption these predictors have a small effect on alcohol content, if at all any. 
+We therefore choice the priors given by
+$$\beta_i\sim\mathcal{N}(0, 1),\forall \ i\in\{1,2,3\},$$
+Further rational for this choice of prior is given by the following argument. The range of values for the response is $(11,14.8)$ whilst the range of the predictors are: magnesium  $(5,11)$, color intensity $(1.3,13)$, and proline $(0.9,5)$. The predictors have ranges close in scale to the response. Hence any relationship they have will likely be small.
+
+The following R code creates the Bayesian models in Stan, generates samples from each model, and computes the log-likelihood for each sample (this will be used later for comparing models).
+```{r}
+#| output: false
+
+#Load stan library
+library(rstan)
+#Create stan code
+stancode <- 
+'
+data {
+  //number of samples
+  int <lower=1> n;
+  //response data
+  vector[n] y;
+  //predictors data
+  //We set different models by inputting vector of zeros to "turn off" predictor
+  vector[n] mag;
+  vector[n] col;
+  vector[n] pro;
+}
+//Define random variables
+parameters {
+  real alpha;
+  real beta_1;
+  real beta_2;
+  real beta_3;
+  real sigma;
+}
+//generate means
+transformed parameters{ 
+  vector[n] mu = alpha + beta_1 * mag + beta_2 * col + beta_3 * pro;
+}
+model {
+  //flat prior for intercept, centered around avg alcohol content
+  alpha ~ normal(11.5, 3);
+  //true parameter values most likely small, given the range of response/preds
+  beta_1 ~ normal(0, 1);
+  beta_2 ~ normal(0, 1);
+  beta_3 ~ normal(0, 1);
+  sigma ~ exponential(2); 
+  y ~ normal(mu, sigma);
+}
+generated quantities {
+  //generate samples
+  vector[n] y_tilde;
+  //compute log-likelihood for each generated model
+  vector[n] log_lik;
+  for (i in 1:n) {
+    y_tilde[i] = normal_rng(mu[i], sigma);
+    log_lik[i] = normal_lpdf(y[i] | mu[i], sigma);
+  }
+}
+'
+#Create stan model
+stan.model <- stan_model(model_code = stancode)
+#Generate samples from model 1 
+model_mag <- sampling(stan.model, iter = 5000, seed = 1, 
+                   data = list(n = nrow(italian_wines), 
+                               y = italian_wines$alcohol, 
+                               mag = italian_wines$magnesium,
+                               col = 0*italian_wines$color_intensity,
+                               pro = 0*italian_wines$proline))
+#Generate samples from model 2
+model_magcol <- sampling(stan.model, iter = 5000, seed = 1, 
+                         data = list(n = nrow(italian_wines), 
+                                     y = italian_wines$alcohol, 
+                                     mag = italian_wines$magnesium,
+                                     col = italian_wines$color_intensity,
+                                     pro = 0*italian_wines$proline))
+#Generate samples from model 3
+model_magcolpro <- sampling(stan.model, iter = 5000, seed = 1, 
+                            data = list(n = nrow(italian_wines), 
+                                        y = italian_wines$alcohol, 
+                                        mag = italian_wines$magnesium,
+                                        col = italian_wines$color_intensity,
+                                        pro = italian_wines$proline))
+```
+
+Model 1 is given by `model_mag`. A summary of the posterior distributions is given in the output of the following code chunk
+```{r}
+print(model_mag, pars = c('alpha', 'beta_1',  'sigma'))
+```
+The output suggests the choice of prior for $\alpha$ was well informed. The predicted mean $11.47$ is close to the assumed mean $11.5$. The $95\%$ CI for $\alpha$ is also small $(10.6,12.3)$ suggesting a good estimate 
+The posterior predicted mean for $\beta_1$ is $0.22$ with a standard deviation of $0.06$ and a $95\%$ CI of $(0.1, 0.34)$. The sd is high relative to the mean value suggesting an uncertainty in the relationship. The $95\%$ CI does not overlap with the origin which suggests there is a small positive relationship between alcohol and magnesium. It can be shown the marginal posterior distribution of $\beta_1 | y$, averaging over $\sigma$, is multivariate t with n − k degrees of freedom. Hence, we can compute a p-value under this distribution. The p-value of $\beta_1$ is $t_{176}(\frac{0.22}{0.06})=0.0006$. This suggests magnesium is related to alcohol content at less than the $5\%$ significance level.
+
+Model 1's parameters suggest there is a positive relationship between alcohol content and magnesium content in wine. For a unit increase in magnesium there is, on average, a $0.22$ unit increase in alcohol in wines from Italy. The average alcohol content of wines in Italy, given by the model, is $11.47\%$.
+
+Model 2 is given by `model_magcol`. A summary of the parameters' posterior distributions is given in the output of the following code chunk
+```{r}
+print(model_magcol, pars = c('alpha', 'beta_1', 'beta_2', 'sigma'))
+```
+The output suggests, like in model 1, the choice of prior for $\alpha$ was well informed. There is a slight decrease in $\alpha$ compared to model 1 but not large enough to suggest a systematic difference. There is a noticeable difference between predictor $\beta_1$ in model 1 and model 2. Model 2 suggest magnesium has a smaller effect of increasing alcohol content than model 1. The posterior predicted mean for $\beta_2$ was $0.14$ with a standard deviation of $0.05$ and a $95\%$ CI of $(0.03, 0.24)$. The sd remains high suggesting uncertainty in the relationship. There remains a positive relationship albeit much smaller and more uncertain. The p-value of $\beta_1$ is $t_{175}(\frac{0.14}{0.05})=0.008$, below the $5\%$ threshold.
+The model suggests a more certain relationship between alcohol and colour intensity. The posterior predicted mean for $\beta_2$ is $0.18$ with a standard deviation of $0.02$ and a $95\%$ CI given by $(0.14,0.22)$. This smaller sd and narrower range suggests an increased certainty of the relationship between the two quantities. The p-value of $\beta_2$ is $t_{175}(\frac{0.18}{0.02})\approx 0$.
+
+Model 2's parameters suggest there is a positive relationship between alcohol content and magnesium content and alcohol content and colour intensity in wine. For a unit increase in magnesium, ceteris paribus\footnote{All other things being equal, i.e. colour intensity remains constant, only changing magnesium.}, there is, on average, a $0.14$ unit increase in alcohol in wines from Italy. Likewise, for a unit increase in colour intensity, ceteris paribus, there is, on average, a $0.18$ unit increase in alcohol. The average alcohol content of wines in Italy, given by the model, is $11.15\%$. 
+
+The variance $\sigma^2$ has decreased compared to model 1.
+
+Model 3 is given by `model_magcolpro`. A summary of the parameters' posterior distributions is given in the output of the following code chunk
+```{r}
+print(model_magcolpro, pars = c('alpha', 'beta_1','beta_2', 'beta_3', 'sigma'))
+```
+The prior for $\alpha$ remains well informed. Model 1 and Model 2 suggested a positive relationship for $\beta_1$. The output of this model suggests a different relationship. The p-value of $\beta_1$ is now $t_{174}(\frac{-0.01}{0.05})=0.39$, above the $5\%$ threshold. This suggests no evidence for a relationship. Parameters $\beta_2$ and $\beta_3$ seem to be strongly related with alcohol content. The p-value of $\beta_2$ is $t_{174}(\frac{0.13}{0.02})\approx0$ and the p-value of $\beta_3$ is $t_{174}(\frac{0.43}{0.05})\approx0$ which suggests strong evidence for a relationship. We also see the variance of this model has decreased compared to model 1 and 2. This should be expected, the more parameters we add to our model the more information it can capture.
+
+Model 3's parameters suggest there is no relationship between alcohol content and magnesium content, and a weak positive relationship between alcohol content and colour intensity, and alcohol content and proline in wine. For a unit increase in color intensity, ceteris paribus, there is, on average, a $0.13$ unit increase in alcohol in wines from Italy. Likewise, for a unit increase in proline, ceteris paribus, there is, on average, a $0.43$ unit increase in alcohol. The average alcohol content of wines in Italy, given by the model, is $11.38\%$. 
+
+# Question 2 (Model Assessment)
+In Question 1 we fitted and summarized 3 Gaussian models. In this part we'll assess the models' fit with two posterior predictive checks; A numerical summary, and a graphical summary.
+
+The following R code computes numerical summary statistics for the true observations and model 1's simulated observations.
+```{r}
+#extract samples from stan model
+y_tilde <- as.matrix(model_mag, pars = c("y_tilde"))
+#compute mean value for each y_i
+y_hat <- apply(y_tilde, 2, mean)
+y <- italian_wines$alcohol
+#summarize both y_observed and y_simulated
+summary(y)
+summary(y_hat)
+```
+The first line represents the summary of true observations whilst the second line represents the summary of mean simulated observations. The model does not capture all observations in the data as evident by a discrepancy in minimum and maximum values. The mean and median coincide.
+```{r}
+#| warning: false
+#| label: fig-model1
+#| layout-ncol: 2
+#| fig-cap: "Model 1 Fit and Residuals"
+#| fig-subcap: 
+#|   - "Model Fit"
+#|   - "Residuals"
+#| fig-width: 3
+#| fig-height: 4
+#Load plotting library
+library(ggplot2)
+#extract matrix of sampled observations
+y_tilde <- as.matrix(model_mag, pars = c("y_tilde"))
+#compute quantile for each simulation
+y_tilde_qt <- apply(y_tilde, 2, function(x) quantile(x, c(0.025, 0.975)))
+#extract lower and upper quantile
+pp_hpdi_95_l <- y_tilde_qt[1, ]
+pp_hpdi_95_u <- y_tilde_qt[2, ]
+#plot density 
+d.plot <- data.frame(x = 1:nrow(italian_wines),y=italian_wines$alcohol)
+ggplot()+
+geom_point(data = d.plot,
+           aes(x= x,y = y), shape = 19, cex = 0.5)+
+ggtitle("95% posterior predictive interval")+
+geom_ribbon(data = d.plot,
+            mapping = aes(x,
+                          ymin = pp_hpdi_95_l,
+                          ymax = pp_hpdi_95_u), alpha = 0.4)
+#re-use d.plot dataframe for plotting mean residual
+for (i in 1:178){
+  d.plot$y[i] <- mean(y_tilde[,i]-italian_wines$alcohol[i])   
+}
+#plot average residuals
+ggplot(d.plot, aes(x=x, y=y))+
+  geom_point(shape = 19, cex = 1)+
+  ggtitle("Average Residuals Model 1")+
+  geom_smooth(se=FALSE, colour="red", span=0.3, linetype="11")
+```
+@fig-model1 (a) illustrates the $95\%$ predictive interval of model 1. We see the model does not capture the quadratic nature of the data. @fig-model1 (b) illustrates the mean residuals. Evident is a quadratic pattern. This suggests missing parameters. 
+
+Model 1 is therefore not a good fit to the data.
+
+The following R code computes numerical summary statistics for the true observations and model 2's simulated observations.
+```{r}
+y_tilde <- as.matrix(model_magcol, pars = c("y_tilde"))
+y_hat <- apply(y_tilde, 2, mean)
+summary(y)
+summary(y_hat)
+```
+The model better captures the maximum values but still fails to capture minimum values. The mean and median coincide.
+```{r}
+#| label: fig-model2
+#| layout-ncol: 2
+#| fig-cap: "Model 2 Fit and Residuals"
+#| fig-subcap: 
+#|   - "Model Fit"
+#|   - "Residuals"
+#| fig-width: 3
+#| fig-height: 4
+#compute quantile for each simulation
+y_tilde_qt <- apply(y_tilde, 2, function(x) quantile(x, c(0.025, 0.975)))
+#extract lower and upper quantile
+pp_hpdi_95_l <- y_tilde_qt[1, ]
+pp_hpdi_95_u <- y_tilde_qt[2, ]
+#plot density 
+d.plot <- data.frame(x = 1:nrow(italian_wines),y=italian_wines$alcohol)
+ggplot()+
+geom_point(data = d.plot,
+           aes(x= x,y = y), shape = 19, cex = 0.5)+
+ggtitle("95% posterior predictive interval")+
+geom_ribbon(data = d.plot,
+            mapping = aes(x,
+                          ymin = pp_hpdi_95_l,
+                          ymax = pp_hpdi_95_u), alpha = 0.4)
+#re-use d.plot dataframe for plotting mean residual
+for (i in 1:178){
+  d.plot$y[i] <- mean(y_tilde[,i]-italian_wines$alcohol[i])   
+}
+#plot average residuals
+ggplot(d.plot, aes(x=x, y=y))+
+  geom_point(shape = 19, cex = 1)+
+  ggtitle("Average Residuals Model 2")+
+  geom_smooth(se=FALSE, colour="red", span=0.3, linetype="11")
+```
+@fig-model2 (a) illustrates the $95\%$ predictive interval of model 2. The model captures some of the quadratic nature of the data. @fig-model1 (b) illustrates the mean residuals. There is still evidence of a missing parameter, as evident by the quadratic distribution of the residuals, but that it is not as strong compared to model 1.
+
+The following R code computes numerical summary statistics for the true observations and model 3's simulated observations.
+```{r}
+y_tilde <- as.matrix(model_magcolpro, pars = c("y_tilde"))
+y_hat <- apply(y_tilde, 2, mean)
+summary(y)
+summary(y_hat)
+```
+The model better captures the maximum values but still fails to capture minimum values. It does though perform the best compared to the previous two models. The mean and median coincide.
+```{r}
+#| label: fig-model3
+#| layout-ncol: 2
+#| fig-cap: "Model 3 Fit and Residuals"
+#| fig-subcap: 
+#|   - "Model Fit"
+#|   - "Residuals"
+#| fig-width: 3
+#| fig-height: 4
+#compute quantile for each simulation
+y_tilde_qt <- apply(y_tilde, 2, function(x) quantile(x, c(0.025, 0.975)))
+#extract lower and upper quantile
+pp_hpdi_95_l <- y_tilde_qt[1, ]
+pp_hpdi_95_u <- y_tilde_qt[2, ]
+#plot density 
+d.plot <- data.frame(x = 1:nrow(italian_wines),y=italian_wines$alcohol)
+ggplot()+
+geom_point(data = d.plot,
+           aes(x= x,y = y), shape = 19, cex = 0.5)+
+ggtitle("95% posterior predictive interval")+
+geom_ribbon(data = d.plot,
+            mapping = aes(x,
+                          ymin = pp_hpdi_95_l,
+                          ymax = pp_hpdi_95_u), alpha = 0.4)
+#re-use d.plot dataframe for plotting mean residual
+for (i in 1:178){
+  d.plot$y[i] <- mean(y_tilde[,i]-italian_wines$alcohol[i])   
+}
+#plot average residuals
+ggplot(d.plot, aes(x=x, y=y))+
+  geom_point(shape = 19, cex = 1)+
+  ggtitle("Average Residuals Model 2")+
+  geom_smooth(se=FALSE, colour="red", span=0.3, linetype="11")
+```
+@fig-model3 (a) illustrates the $95\%$ predictive interval of model 2. We see the model captures all of the quadratic nature of the data. @fig-model3 (b) illustrates the mean residuals. The residuals look to be normally distributed around 0, suggesting no missing parameters and a good fit.
+
+Model 3 is therefore the best fit to the data.
+
+# Question 3 (Model Comparisions)
+
+We now look at comparing the predictive performance of the 3 models to the dataset. We'll use two methods to compare the models. The first method is to compare log pointwise predictive densities (lppd) of the models with leave-one-out cross validation. The lppd is defined as 
+\begin{align}
+\text{lppd}(x) &= \sum_{i=1}^n\log\int q(x_i | \theta)p(\theta | x_i) d\theta,\\
+               &\approx \sum_{i=1}^n\log(\frac{1}{S}\sum_{s=1}^Sq(x_i | \theta_s)),
+\end{align}
+where $q$ is the likelihood of observing $x_i$ given parameter $\theta_s$ drawn from the posterior $\pi(\theta, x)$. lppd measures the deviance between a true model, which the observations were sampled from, and the fitted model i.e. our Gaussian models. The lppd is not useful to quantify the predictive ability of the model. The model is fitted to the entire dataset hence will be biased at predicting samples from the dataset. To reduce bias we can use leave-one-out cross-validation. With loo CV lppd becomes
+\begin{align}
+\text{lppd}(x) \approx \sum_{i=1}^n\log(\frac{1}{S}\sum_{s=1}^Sq(x_i | \theta^s_{-i})),
+\end{align}
+where $\theta^s_{-i}$ is drawn from the posterior distribution with $x_i$ absent, $p(\theta | x_{-i})$.
+
+The following R code computes leave-one-out cross-validation log posterior predictive distribution for each model and compares them relative to the model with lowest lppd.
+```{r}
+#| warning: false
+#Load library
+library(loo)
+#elpd_loo
+loo_mag <- loo(model_mag)
+loo_magcol <- loo(model_magcol)
+loo_magcolpro <- loo(model_magcolpro)
+loo_compare(list('Model Mag' = loo_mag, 
+                 'Model Mag+Col' = loo_magcol,
+                 'Model Mag+Col+Pro' = loo_magcolpro))
+```
+The output suggests model 3 (magnesium, colour intensity, and proline) has the lowest lppd and is the best fit models.
+
+<!--In the real world, we do not know the true distribution $q(x)$ from which samples were drawn from, hence we need methods to estimate observations without any information about $q(x)$. Information criteriaare made to overcome such problems [^1 cite book]. Several ICs have been formulated but we'll focus on one in particular. -->
+The Widely Applicable Information Criteria by Watanabe (2010) estimates the generalization loss of the predictive density, and is defined by 
+$$\text{WAIC} = -2(\text{lppd}-\sum_i\text{Var}[p(y_i,\theta)]).$$
+We'll compute this statistic using leave-one-out cross validation.
+
+The following R code computes loo WAIC for each model and compares them relative to the model with lowest WAIC.
+```{r}
+#| warning: false
+#WAIC loo
+log_lik_mag <- extract_log_lik(model_mag)
+waic_mag <- waic(log_lik_mag)
+log_lik_magcol <- extract_log_lik(model_magcol)
+waic_magcol <- waic(log_lik_magcol)
+log_lik_magcolpro <- extract_log_lik(model_magcolpro)
+waic_magcolpro <- waic(log_lik_magcolpro)
+
+loo_compare(list('Model Mag' = waic_mag, 
+                 'Model Mag+Col' = waic_magcol,
+                 'Model Mag+Col+Pro' = waic_magcolpro))
+```
+The output shows the same model, model 3, has lowest WAIC. This confirms the best fit model is model 3.
+
+# Question 4 (Model Choice)
+We've shown in Question 2 in model 3 the predictor magnesium is not related to alcohol content. This gives us reason to believe we do not need this predictor in the model. Hence, we propose the following model:
+\begin{align}
+Y_i \sim \mathcal{N}(\mu_i = \alpha+\beta_2 \cdot X_{2i}+\beta_3 \cdot X_{3i},\sigma).
+\end{align}
+
+The following R code samples from the new model and summarizes the posterior distributions of the parameters.
+```{r}
+#| output: false
+#Alternative model - colour intensity + proline, no magnesium
+model_new <- sampling(stan.model, iter = 5000, seed = 1, 
+                      data = list(n = nrow(italian_wines), 
+                                  y = italian_wines$alcohol, 
+                                  mag = 0*italian_wines$magnesium,
+                                  col = italian_wines$color_intensity,
+                                  pro = italian_wines$proline))
+```
+```{r}
+print(model_new, pars = c('alpha', 'beta_2', 'beta_3',  'sigma'))
+```
+The parameter estimates are same as in model 3, also the variance $\sigma^2$ the same. The p_value for $\beta_2$ is $t_{176}(\frac{0.13}{0.02})\approx0$ and $\beta_3$ is $t_{176}(\frac{0.42}{0.04})\approx0$. Both colour intensity and proline are related to alcohol content. Removing magnesium from the model had no effect on the parameter estimates. This suggests magnesium is not needed in the model.
+```{r}
+#| label: fig-modelnew
+#| layout-ncol: 2
+#| fig-cap: "Model New, Fit and Residuals"
+#| fig-subcap: 
+#|   - "Model Fit"
+#|   - "Residuals"
+#| fig-width: 3
+#| fig-height: 4
+y_tilde <- as.matrix(model_new, pars = c("y_tilde"))
+y_tilde_qt <- apply(y_tilde, 2, function(x) quantile(x, c(0.025, 0.975)))
+pp_hpdi_95_l <- y_tilde_qt[1, ]
+pp_hpdi_95_u <- y_tilde_qt[2, ]
+d.plot <- data.frame(x = 1:nrow(italian_wines),y=italian_wines$alcohol)
+ggplot()+
+  geom_point(data = d.plot,
+             aes(x= x,y = y), shape = 19, cex = 0.5)+
+  ggtitle("95% posterior predictive interval New Model")+
+  geom_ribbon(data = d.plot,
+              mapping = aes(x,
+                            ymin = pp_hpdi_95_l,
+                            ymax = pp_hpdi_95_u), alpha = 0.4)
+#re-use d.plot dataframe for plotting mean residual
+for (i in 1:178){
+  d.plot$y[i] <- mean(y_tilde[,i]-italian_wines$alcohol[i])   
+}
+ggplot(d.plot, aes(x=x, y=y))+
+  geom_point(shape = 19, cex = 1)+
+  ggtitle("Average Residuals New Model")+
+  geom_smooth(se=FALSE, colour="red", span=0.3, linetype="11")
+```
+@fig-modelnew (a) illustrates the $95\%$ predictive interval of the new model. We see the model captures about the same amount of information as model 3. @fig-modelnew (b) illustrates the mean residuals. The residuals look to be distributed the same as model 3.
+
+Finally, we compare the new model's WAIC with model 3.
+```{r}
+log_lik_magcolpro <- extract_log_lik(model_magcolpro)
+waic_magcolpro <- waic(log_lik_magcolpro)
+log_lik_newm <- extract_log_lik(model_new)
+waic_newm <- waic(log_lik_newm)
+
+loo_compare(list('Model New' = waic_newm, 
+                 'Model Mag+Col+Pro' = waic_magcolpro))
+```
+The output of above code chunk shows the new model is better than model 3.
