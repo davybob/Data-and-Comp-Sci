@@ -1,0 +1,244 @@
+---
+title: "STAT40850 Assignment 2"
+subtitle: "David Lisovski - 18306686"
+format: 
+   pdf: 
+    output-file: "Assignment-2-David_Lisovski-18306686"
+    output-ext:  "pdf"
+editor: visual
+---
+
+In this assignment we analyzed the relationship between household income and household expenditures for food. A dataset of 38 observations gathered from a European rural community was used to analyze the relationship. The dataset contained 3 variables
+
+food: daily household food expenditure for food in euro;
+
+income: household daily income in euro;
+
+persons: number of persons living in household.
+
+We did not use the last variable in our analysis.
+
+We began by loading the dataset into R and plotting the data to see whether there was any indication of a relationship. The following code cell loads the dataset and plots food against income
+
+{r}
+#| label: fig-dataplot
+#| fig-cap: 
+#|   - "Plot of Food Against Income"
+#Load data
+load(url("https://acaimo.github.io/teaching/data/foodexp.RData"))
+library(ggplot2)
+#Plot data
+ggplot(foodexp, aes(x = income, y = food))+ 
+  geom_point(size = 1.5)+
+  labs(title="Plot of Food Expenditure against Household Income",)+
+  xlab("Household Income (Euro)")+
+  ylab("Food Expenditure (Euro)")
+
+@fig-dataplot illustrates the plot of food expenditure against household income. We see a lot of variability in food expenditure as a function of household income but that there did seem to be a weak positive relationship between the two variables.
+
+Question 1
+
+To understand the relationship between food expenditure ($y_i$) and household income ($x_i$) we created a Bayesian model. We assumed the response $y_i \ | \ x_i$ was normally distributed with a mean $\mu$ and variance $\sigma^2$, $$y_i \ | \ \mu,\sigma^2 \sim N(\mu,\sigma^2).$$ We assumed the variance $\sigma^2$ remained fixed for all household incomes and that the mean was a linear function of the household income $$\mu = \alpha+\beta x_i.$$ where $\alpha$ and $\beta$ are hyperparameters that described the mean food expenditure when household income was zero $\alpha$, and the mean change in food expenditure as household income changed $\beta$. Both hyperparameters are random variables and were the quantities of interest in this analysis.
+
+In $2021$ the average household expenditure on food was $\sim15\%$ of household income . We used this estimate a priori. Noting that expenditure cannot be negative and that it cannot exceed income, we chose the following prior distribution for $\beta$, $$\beta\sim \text{Beta}(a=1,b=7),$$ where the parameters $a,b$ were computed using the mean for a beta distribution $\frac{a}{a+b}=0.15.$ We chose the Beta distribution because it's support is in $(0,1)$ which corresponds nicely to a proportion.
+
+We had no prior information about the intercept $\alpha$ so we made it uninformative $$\alpha\sim N(0,1).$$ After choosing our prior distributions we simulated $1000$ realizations of the regression line. The following code samples $1000$ realizations from the prior distributions and plots a band around the mean regression line within which the realizations are contained.
+
+{r}
+#| label: fig-priorregression
+#| fig-cap: 
+#|   - "Plot of prior regression line and 95% confidence band"
+set.seed(7)
+#Set number of samples
+n <- 1000
+#Set points to compute mean around
+x <- seq(min(foodexp$income),max(foodexp$income),1)
+#Set priors
+beta <- rbeta(n, 1, 7) 
+alpha <- rnorm(n, 0, 10)
+#compute prior mean responses for each value of x 
+means <- sapply(x, FUN=function(x) alpha+beta*x)
+#Get range of mean values for each x
+mu_min_max <- apply(means,
+                    2,
+                    function(x) range(x))
+#extract min and max
+mu_min <- mu_min_max[1, ]
+mu_max <- mu_min_max[2, ]
+#plot mean prior response and min/max prior response as band around mean
+ggplot() +
+  geom_point(data = foodexp, aes(x = income, y = food), 
+             shape = 19, size=1) +
+  geom_abline(data = foodexp, aes(intercept = mean(alpha),
+                                slope = mean(beta)), color = 'red')+
+  geom_ribbon(aes(x, ymin = mu_min, ymax = mu_max),
+              alpha = 0.3) +
+  labs(title = "Range of Prior Regression Lines")+
+  xlab("Household Income (Euro)")+
+  ylab("Food Expenditure (Euro)")
+
+@fig-priorregression illustrates $1000$ prior predictions of the regression line. The red line represents the mean of the regression lines and the grey band represents where the $1000$ prior predictions of the regression line lie. We see that our prior assumption for $\beta$, while varied a lot, did align on average close to trend in the data. The choice of $\alpha$, as it was chosen arbitrarily, needed adjustment.
+
+Question 2
+
+We implemented our Bayesian model in Stan. The following code chunk loads the Stan code.
+
+{r}
+#| output: false
+library(rstan)
+
+stan_code <- '
+data {
+  int <lower=1> n; // number of sample points
+  vector[n] y;     // targets
+  vector[n] x;     // covariate
+}
+parameters {
+  real alpha; // interept
+  real beta;  // slope
+  real sigma; // variance
+}
+transformed parameters{ 
+  vector[n] mu = alpha + beta * x; // save each sampled regression line
+}
+model {
+  // specify prior distributions for beta, alpha, sigma
+  beta ~ beta(1, 7);
+  alpha ~ normal(0, 10);      // noninformative prior intercept
+  sigma ~ exponential(0.001); // noninformative prior variance
+  // specify distribution of data
+  y ~ normal(mu, sigma);
+}
+generated quantities {
+  vector[n] y_tilde; // generate samples
+  for (i in 1:n) y_tilde[i] = normal_rng(mu[i], sigma); 
+}'
+
+The following code chunk implements the Stan model and generates samples from the posterior predictive distribution.
+
+{r}
+#| warning: false
+#| output: false
+#create model
+model <- stan_model(model_code = stan_code)
+#specify data
+x <- foodexp$income
+y <- foodexp$food
+n <- length(y)
+#Sample from model
+posterior <- sampling(model,
+                      iter = 5000,
+                      seed = 2,
+                      data = list(n=n, x=x, y=y))
+
+{r}
+print(posterior, pars=c("alpha","beta","sigma"))
+
+The output of the code chunk above illustrates the output of the model. The algorithm was able to fit the model without issue (Rhat=1) and that there were around $3500$ independent samples for each random variable. The model found a positive relationship between food expenditure and household income $\bar{\alpha}=0.16$ with 95% of observations between $0.08$ and $0.23$. This posterior prediction was close to our prior assumption indicating that the prior matched closely. The intercept was used as an extra degree of freedom and has no logical explanation. The standard deviation $\bar{\sigma}=4.84$ was high but that that was reflected in the data (see @fig-dataplot).
+
+{r}
+#| warning: false
+#| label: fig-pairplot
+#| fig-cap: 
+#|   - "Pair plot of each random variable."
+library(bayesplot)
+draws <- as.data.frame(posterior)
+mcmc_hist(draws, pars = c('alpha', 'beta', 'sigma'))
+
+@fig-pairplot illustrates histograms of the random variables. We observed $\alpha$ and $\beta$ both normally distributed around $6.7$ and $0.16$ respectively, but that $\sigma$ was slightly right-skewed.
+
+We plotted realizations of our posterior predictive distribution. The following code chunk extracts the predictions from the model and plots the mean response and range of posterior predictive samples for each value of $x$.
+
+{r}
+#| warning: false
+#| label: fig-posteriorplot
+#| fig-cap: 
+#|   - "Range of Posterior Predictive Samples."
+#Extract posterior prediction samples from model
+y_tilde <- extract(posterior)$y_tilde
+#Extract range of predictions for each x
+y_CI <- apply(y_tilde, MARGIN = 2, FUN = function (x)  range(x))
+y_CI_lower <- y_CI[1,]
+y_CI_upper <- y_CI[2,]
+#Plot results
+ggplot() +
+  geom_point(data = foodexp, aes(income, food), shape = 19, size = 1)+
+  geom_abline(data = foodexp, aes(intercept = mean(draws$alpha),
+                                slope = mean(draws$beta)), color = 'red')+
+  geom_ribbon(aes(x, ymin = y_CI_lower, ymax = y_CI_upper),
+              alpha = 0.3)+
+  labs(subtitle = "Range of Posterior Predictive Samples.")+
+  xlab("Household Income (Euro)")+
+  ylab("Food Expenditure (Euro)")
+
+@fig-posteriorplot illustrates the plot. We observed the model fitted the data well. The range of posterior predictions encompassed the original data, and followed the trend in the data.
+
+Question 3
+
+In this section we illustrated the difference between our prior and posterior distributions of the expected daily household food expenditure $\mu$ for a single point $x=50$. The following code chunk samples $10000$ realizations from the prior distributions and $10000$ samples from the posterior distributions, then computes a $95\%$ confidence interval for the mean, and median, a prior and a posteriori.
+
+{r}
+set.seed(7)
+obs <- length(draws$beta)
+beta <- rbeta(obs, 1, 7) 
+alpha <- rnorm(obs, 0, 10)
+
+#Prior Estimate
+mu_prior_50 <- alpha + beta*50
+quantile(mu_prior_50, c(0.025, 0.5, 0.975))
+#Posterior Estimate
+mu_50 <- draws$alpha + draws$beta*50
+quantile(mu_50, c(0.025, 0.5, 0.975))
+
+The output of the code cell above illustrated the prior and posterior estimates. The first row illustrated the prior $95\%$ confidence interval $(-15.3,29.6)$ and median $5.86$. The second row illustrated the posterior 95% confidence interval $(12.9,16.3)$ and median $5.86$. We found the posterior interval was narrower than the prior, but that the posterior was contained within the prior. We also observed only positive values in the posterior but both positive and negative values in the prior. This illustrates the effect the data had on the model.
+
+Question 4
+
+In this section we visualized the $80\%$ posterior prediction interval for our estimated model. The following code chunk extracts posterior samples from the Stan model, uses them to compute the $80\%$ prediction interval, and then plots the results.
+
+{r}
+#| warning: false
+#| label: fig-posteriorinterval
+#| fig-cap: 
+#|   - "80% Posterior Prediction Interval"
+#Extract posterior samples
+y_tilde <- extract(posterior)$y_tilde
+#Compute 80% predictive interval
+pp_hpdi_95 <- apply(y_tilde,
+                    2,
+                    function(x) quantile(x, c(0.1, 0.9)))
+pp_hpdi_95_l <- pp_hpdi_95[1, ]
+pp_hpdi_95_u <- pp_hpdi_95[2, ]
+#Plot results
+ggplot() +
+  geom_point(data = foodexp, aes(income, food), shape = 19) +
+  geom_ribbon(mapping = aes(x,
+                            ymin = pp_hpdi_95_l,
+                            ymax = pp_hpdi_95_u), alpha = 0.3) +
+  labs(subtitle = '80% Posterior Prediction Interval')+
+  xlab("Household Income (Euro)")+
+  ylab("Food Expenditure (Euro)")
+
+@fig-posteriorinterval illustrated the $80\%$ posterior prediction interval. We observed some sample points lying outside the interval. The general trend follows the data quite well.
+
+Question 5
+
+In this section we computed the posterior predictive distribution for household daily income corresponding to $69$ euro. The following code chunk computes the predictive distribution and plots a density plot.
+
+{r}
+#| warning: false
+#| label: fig-densityplot
+#| fig-cap: 
+#|   - "Posterior Prediction Density Plot For Income = 69 Euro"
+# Compute posterior samples corresponding to x=69
+pi_69 <- rnorm(length(draws$alpha),
+               mean=draws$alpha + draws$beta * 69, 
+               sd=draws$sigma)
+ggplot() + 
+  geom_density(aes(x = pi_69), fill = 'lightskyblue1') +
+  labs(x = 'mu (expected food expenditure a posteriori) | income = 69 euro',
+       title = "Posterior Prediction Density Plot For Income = 69 Euro")+
+  xlab("Household Income (Euro)")+
+  ylab("Food Expenditure (Euro)")
+
+@fig-densityplot illustrates the density plot corresponding to a household daily income of $69$ euro. We observed the majority of mass lying between $10$ and $25$ euro which corresponded to between $14.5\%$ and $36\%$ of household income.
