@@ -1,0 +1,961 @@
+---
+title: "STAT30340 Data Programming with R - Final Project"
+author: "David Lisovski - 18306686"
+format: 
+  pdf:
+    output-file: "STAT30340-Final_Assignment-David_Lisovski-18306686"
+    output-ext:  "pdf"
+    cite-method: biblatex
+    toc: false
+    documentclass: report
+    include-in-header:
+        - text: |
+            \usepackage{geometry}
+            \usepackage{titling}
+            \renewcommand\maketitlehooka{\null\mbox{}\vfill}
+            \renewcommand\maketitlehookd{\vfill\null}
+            \renewcommand{\bibname}{References}
+    number_sections: true
+bibliography: references.bib
+---
+
+```{=tex}
+\newpage
+\tableofcontents
+\newpage
+```
+```{=tex}
+\part{Part 1 (Analysis): An Analysis of Ireland's Broadband}
+\section{Introduction}
+```
+High speed broadband is integral to a modern economy. It is used by both businesses and consumers. Businesses use broadband to connect and communicate with clients, store and access information, for financial transactions, advertisement, and much more. Consumers use broadband to consume media, buy products, communicate and much more. In recent years there has been a strong increase in remote working. This has accelerated during and post COVID-19. Remote working has made a wide variety of jobs fully digital, such as web designers, developers, data analysts, and several more, and enabled workers to live almost anywhere. Despite Ireland being a small country its population is concentrated in the main city, Dublin. The prospect of remote working may entice workers to live outside of Dublin. But, a reliable high speed broadband is critical to remote working and any county without it will not benefit from remote working.
+
+In this analysis we looked at Ireland's broadband providers and speeds. The analysis is split into two sections. The first section analysed broadband providers in Ireland with the aim of answering what sort of speeds are to be expected, who were the best broadband providers, and if there was a regional difference in provider's speeds. The second section analysed fixed and mobile broadband speeds with the aim of answering what sort of speeds are to be expected, what counties had the best and worst broadband speeds, and if there was a regional difference in broadband speeds.
+
+\section{Datasets; Descriptions, Sources, and Comments}
+
+```{r}
+#| output: false
+#Load pre-requisite libraries
+library(dplyr)
+library(tidyr)
+library(forcats)
+library(ggplot2)
+library(lubridate)
+library(readr)
+```
+
+We used two datasets for this analysis. One for broadband providers and for broadband speeds.
+
+\subsection{Broadband Providers Dataset}
+
+The first dataset consisted of broadband providers in Ireland, the county they were providing the service in, median upload speeds in those counties, and median download speeds for October 2023. The dataset was loaded into R using the following code
+
+```{r}
+df_providers <- read.csv('Ookla-service-providers.csv',header=TRUE, skip=1)
+str(df_providers)
+```
+
+A brief overview of the dataset is shown in the output. We dropped columns `provider_id`, `service`, and `period` as these weren't needed in our analysis and renamed columns `p25_download_mbps` and `p75_download_mbps`. We also added in two new columns, `range` that computed the range of speeds and `province` which specified which province of Ireland a county was part of. Finally, we changed `provider` and `County` to be factors. The following code chunk was used to make the changes
+
+```{r}
+#| label: tbl-broadband-providers
+#| tbl-cap: First 6 rows of broadband providers dataset.
+#| tbl-colwidths: [60,40]
+df_providers <- df_providers |>
+  #remove columns 'service' and 'provider_id'
+  select(!c(service, provider_id,period)) |>
+         #convert provider names to factors
+  mutate(provider_name=as.factor(provider_name),
+         #create range column
+         range = p75_download_mbps-p25_download_mbps,
+         #convert county to factors
+         County = as.factor(County),
+         #create province column
+         province = fct_collapse(County,
+                        `connacht` = c("Galway", "Mayo",
+                                       "Sligo", "Letrim"),
+                        `leinster` = c("Wexford","Meath","Kilkenny",
+                                       "Wicklow","Offaly","Westmeath",
+                                       "Laois","Kildare","Longford",
+                                       "Dublin","Carlow","Louth"),
+                        `munster` = c("Cork","Kerry","Tipperary",
+                                      "Claire","Limerick","Waterford"),
+                        `ulster` = c("Donegal","Cavan","Monaghan"))) |>
+  #rename columns
+  rename(provider=provider_name,
+         mindownload=p25_download_mbps, 
+         maxdownload=p75_download_mbps, 
+         county=County)
+
+knitr::kable(head(df_providers))
+```
+
+@tbl-broadband-providers illustrates the first 6 rows of the formatted dataset. The dataset consisted of $140$ observations and $6$ variables. The data originated from Ookla's speedtest website. These data was manually pulled from Ookla's website \cite{ookla} and saved to a csv file. A copy of the dataset can be found on my GitHub\footnote{\url{https://github.com/DL183UCD/-STAT30340-Final-Project/tree/main}}. The dataset represented a sample of all providers in Ireland. According to Ookla \`An operator or ISP must account for 3% or more of total test samples in the market to be on this list. \[Data is recorded\] if at least two operators or ISPs meet this threshold in a designated region or city is required.'\footnote{See \url{https://www.speedtest.net/performance/ireland/carlow/carlow}.}. This means the data was a sample, though a representative sample, of all broadband providers in Ireland.
+
+\subsubsection{Caveats}
+
+Roscommon was missing from the dataset. There was no data about providers in Roscommon on Ookla.
+
+\subsection{Broadband Speeds Dataset}
+
+The second dataset consisted of median broadband speeds, and median mobile (4G/5G) speeds, for each county in Ireland over a 12 month period from October 2022 to October 2023. These data was, likewise, manually pulled from ookla's website and saved to a csv file. A copy of the dataset can be found on my GitHub. The dataset represented a sample of speeds in Ireland. According to Ookla 'To be added to this \[dataset\] for mobile or fixed broadband, 75% of a city's monthly unique user totals over a 13-month period must have a minimum of 200 monthly unique user results.'.
+
+The dataset was loaded into R using the following code
+
+```{r}
+df_speeds <- read.csv('Ookla-Monthly-Speeds.csv',header=TRUE, skip=1)
+str(df_speeds)
+```
+
+A brief overview of the dataset is shown in the output. We added three new columns to the dataset. The `period` column was split into a year and month and a column that specified the province a county was part of. The following code chunk was used to make the changes
+
+```{r}
+#convert county to factor, period to date-time and separate into month & year
+df_speeds <- df_speeds |>
+        #convert county to factor
+  mutate(County = as.factor(County), 
+         #convert time period to datetime
+         period = ymd(period),
+         #create new column year
+         year=year(period), 
+         #create new column month
+         month = fct_relevel(month(period,label=TRUE),"Nov","Dec"), 
+         #create new column province
+         province = fct_collapse(County,
+                        `connacht` = c("Galway", "Mayo",
+                                       "Sligo", "Roscommon","Leitrim"),
+                        `leinster` = c("Wexford","Meath","Kilkenny",
+                                       "Wicklow","Offaly","Westmeath",
+                                       "Laois","Kildare","Longford",
+                                       "Dublin","Carlow","Louth"),
+                        `munster` = c("Cork","Kerry","Tipperary",
+                                      "Claire","Limerick","Waterford"),
+                        `ulster` = c("Donegal","Cavan","Monaghan"))) |>
+  #drop period column
+  select(-period) |>
+  #rename to lowercase
+  rename(county=County)
+```
+
+We separated the dataset into two subsets; one for analyzing mobile speeds `df_mobile`, and one for analyzing fixed broadband speeds `df_fixed`.
+
+The following code chunk separated the dataset into the mobile broadband dataset
+
+```{r}
+#create mobile dataframe
+df_mobile <- df_speeds |>
+  #removed fixed broadband columns
+  select(!c(fixed_median_download_mbps, fixed_median_upload_mbps, 
+            fixed_median_latency_ms)) |>
+  #rename columns to be something more informative
+  rename(download=mobile_median_download_mbps,
+         upload=mobile_median_upload_mbps,
+         latency=mobile_median_latency_ms) 
+```
+
+And this following code chunk separated the dataset into the fixed broadband dataset
+
+```{r}
+#| label: tbl-broadband-speeds
+#| tbl-cap: First 6 rows of Broadband Speeds dataset
+#| tbl-colwidths: [60,40]
+#create fixed dataframe
+df_fixed <- df_speeds |>
+  #removed mobile broadband columns
+  select(!c(mobile_median_download_mbps, mobile_median_upload_mbps, 
+            mobile_median_latency_ms))|>
+  #rename columns to be something more informative
+  rename(download=fixed_median_download_mbps,
+         upload=fixed_median_upload_mbps,
+         latency=fixed_median_latency_ms) |>
+  #remove any NA rows 
+  filter(complete.cases(download))
+knitr::kable(head(df_fixed))
+```
+
+@tbl-broadband-providers illustrates the first 6 rows of the fixed broadband speeds subset.
+
+\subsubsection{Caveats}
+
+There was no data about Leitrim's fixed broadband speeds on Ookla so was removed from `df_fixed`.
+
+\section{Analysis of Broadband Providers}
+
+Ireland has several regional and national broadband providers and a subset of such providers was found in the dataset. In this section we looked at analyzing Ireland's broadband providers. Our aim was to provide an overview of the speeds provided by broadband providers on Ireland, any trends observed and whether there was a regional difference in speeds.
+
+\subsection{The Best and Worst Broadband Providers in Ireland}
+
+```{r}
+#levels returns list of factor names in column provider
+levels(df_providers$provider)
+```
+
+We found `r as.numeric(length(levels(df_providers$provider)))` broadband providers in the dataset. The output of the above code chunk illustrates the broadband providers found in the dataset. Included are several regional providers, such as Westnet which providers internet exclusively to the West of Ireland, and national providers such as Eir. This list is of course not exclusive.
+
+To find the best broadband providers we averaged the speeds of each provider across all counties the provider operated in. We then sorted the providers by minimum median download speeds in descending order. We chose minimum speeds as our 'best' criteria because we found minimum speeds to be highly correlated with maximum speeds. The correlation coefficient was found to be `r signif(cor(df_providers$mindownload,df_providers$maxdownload),3)`. This implied high minimum median speeds usually resulted in high maximum median speeds whilst low minimum median speeds resulted in low maximum median speeds. The following code chunk finds the 3 best and worst providers
+
+```{r}
+#| warning: false
+#| label: tbl-best-worst-providers
+#| tbl-cap: Top 3 best and worst broadband providers.
+#| tbl-colwidths: [60,40]
+bestWorstProviders <- df_providers |>
+  #group by providers
+  group_by(provider) |>
+  #create summary statistics
+  summarise(`mean minimum` = mean(mindownload), `mean maximum` = mean(maxdownload), 
+            `mean range` = mean(range)) |>
+  arrange(desc(`mean minimum`)) |>
+  slice(c(1:3,n()-2:n():-1))
+knitr::kable(bestWorstProviders)
+```
+
+@tbl-best-worst-providers illustrates the 3 best providers and 3 worst providers. We found Virgin Media to be the best provider with a minimum median download speed of $80$ mbps. We found SCC Broadband to be the worst provider with maximum speeds of \~$26$ mbps, less than a third the minimum speeds customers got with Virigin Media. We also see that Cablecomm a regional provider based in Longford was ranked second best in terms of speeds, ahead of Sky a national broadband provider.
+
+Given that Virgin Media, a large broadband provider is first, would we expect it to have the largest market share in Ireland? The following section looked at answering that question.
+
+\subsection{Competitiveness of Irish Market}
+
+A competitive market creates more productivity and better quality of products and services. In this section we analyzed the competitiveness of Ireland's broadband market by looking at the number of counties each broadband provider operated in.
+
+```{r}
+#| fig-width: 7
+#| fig-height: 5
+#| fig-cap: "Bar Plot of Number of Counties Broadband Providers Operate In"
+#| label: fig-providers-in-counties
+ggplot(df_providers, 
+       aes(x = reorder(provider,provider, function(x)-length(x)),
+                       fill=provider)) +
+  geom_bar() + 
+  guides(fill="none")+ 
+  theme(axis.text.x = element_text(angle = 45, hjust=1))+
+  labs(x = "Providers", 
+       y="# Counties", 
+       title = "Bar Plot of Number of Counties Broadband Providers Operate In.")
+```
+
+@fig-providers-in-counties illustrates a bar plot of the number of counties each broadband provider was found providing service. We found Eir, Sky, and Vodafone to be most prevalent in Ireland, with Eir ranking 1, and observed to be providing broadband to customers in all counties\footnote{Except, of course, Roscommon for which no data was available.}. Despite having the best broadband speeds we see Virgin Media is ranked fourth, providing broadband to just 18 counties.
+
+\subsection{Regional Differences in Providers}
+
+Having found that Eir, Sky, and Vodafone were present in all counties we used those providers as the bases for our analysis of whether there was a regional difference between provider speeds.
+
+```{r}
+#| label: fig-barplots-providerspeeds-provinces
+#| layout-ncol: 2
+#| fig-cap: "Bar Plot of Providers' Download Speed Range Per Province"
+#| fig-subcap: 
+#|   - "Download Speed Range For Eir, Vodafone, and Sky"
+#|   - "Download Speed Range For All Providers"
+df_providers |>
+  #select rows that are about Vodafone, eir or Sky
+  filter(provider %in% c("Vodafone","eir","Sky")) |>
+  #group counties by province
+  group_by(province) |>
+  #create summary statistics
+  summarize(`minimum`= min(mindownload),
+            `maximum`= max(maxdownload),
+            `mean range` =mean(range)) |>
+  ggplot() + 
+    geom_linerange(aes(x=province, y=`mean range`, ymin=minimum, 
+                       ymax=maximum), linewidth=3, color="orange") +
+    theme(axis.text.x=element_text(angle=45,vjust=0.75))+
+    labs(x = "Province", 
+         y="Download Speed (mbps)", 
+         title = "Download Speeds Per Province For Vodafone, Eir, and Sky")
+df_providers |>
+  #group counties by province
+  group_by(province) |>
+  #create summary statistics
+  summarize(`minimum`= min(mindownload),
+            `maximum`= max(maxdownload),
+            `mean range` =mean(range)) |>
+  ggplot() + 
+    geom_linerange(aes(x=province, y=`mean range`, ymin=minimum, 
+                       ymax=maximum), linewidth=3, color="orange") +
+    theme(axis.text.x=element_text(angle=45,vjust=0.75))+
+    labs(x = "Province", 
+         y="Download Speed (mbps)", 
+         title = "Bar Plot of Download Speeds Per Province All Providers")
+```
+
+@fig-barplots-providerspeeds-provinces illustrates a bar plot of the range of speeds in each province for the three providers (a) and for all providers (b). The fastest speeds were observed in Leinster across all providers. We see that the 3 providers, Vodafone, Eir, and Sky have the slowest speeds in Ulster and that regional providers, as shown in (b), provide better speeds. This indicates that there is a regional difference between provider speeds, and that sometimes a regional provider is better than a national provider.
+
+\section{Analysis of Fixed Broadband Speeds}
+
+In this section we looked at Fixed broadband speeds in Ireland. Our aim was to provide an overview of the fixed speeds expected in Ireland and any trends observed.
+
+\subsubsection{Counties With Best and Worst Fixed Broadband Speeds}
+
+We found `r df_fixed[which.max(df_fixed$download),'county']` to have the fastest median download speed in Ireland as of October 2023 with a median speed of `r df_fixed[which.max(df_fixed$download),'download']` mbps. This is about 3 times faster than `r df_fixed[which.min(df_fixed$download),'county']` which had the slowest speed, with a median speed of `r df_fixed[which.min(df_fixed$download),'download']` mbps. We found `r df_fixed[which.max(df_fixed$upload),'county']` to have the fastest median upload speed in Ireland as of October 2023 with a median speed of `r df_fixed[which.max(df_fixed$upload),'upload']` mbps. This is about 2 times faster than `r df_fixed[which.min(df_fixed$upload),'county']` which had the slowest speed, with a median speed of `r df_fixed[which.min(df_fixed$upload),'upload']` mbps.
+
+```{r}
+#| label: tbl-best-worst-speeds
+#| tbl-cap: Fastest and Slowest Counties In Each Month.
+#| tbl-colwidths: [80,60]
+counties <- levels(df_fixed$county)
+bestWorstFixed <- df_fixed |>
+  #remove October 2022
+  filter(!(month == "Oct" & year==2022)) |>
+  #group by month
+  group_by(month) |>
+  #find county with maximum and minimum download/upload speed in each month
+  summarize(`Fastest Download` = counties[which.max(download)], 
+            `Slowest Download` = counties[which.min(download)],
+            `Fastest Upload` = counties[which.max(upload)],
+            `Slowest Upload` = counties[which.min(upload)])
+knitr::kable(bestWorstFixed)
+```
+
+@tbl-best-worst-speeds illustrates the counties with the fastest and slowest median broadband speed for each month from November 2022 to October 2023. We see that Kildare had the fastest median download speed for the majority of months (8 out of 12 months) before it was superseded by Laois. Louth had the slowest median download speed for the majority of months (4 out of 12 months) and ended up being slowest in October 2023. Longford had the fastest median upload speeds for 11 out of the past 12 months, and ended up being the fastest in October 2023. Limerick had the slowest median upload speed and ended up being the slowest in October 2023.
+
+We noticed that counties with the fastest median upload and download speeds were both located in Leinster. In the following section we examined this observation further to see if there was a provincial difference between speeds.
+
+\subsection{Regional Difference In Fixed Broadband Speeds}
+
+```{r}
+#| warning: false
+#| label: fig-plot-of-provincal-speeds
+#| layout-ncol: 2
+#| fig-cap: "Timeseries Plot of Provincial Fixed Broadband Speeds For November 2022 to October 2023"
+#| fig-subcap: 
+#|   - "Mean Median Download Speeds"
+#|   - "Mean Median Upload Speeds"
+#create summary set that has average speeds of all counties in a province
+subset<-df_fixed |>
+  filter(!(month == "Oct" & year==2022), complete.cases(download)) |>
+  group_by(province,month)|>
+  summarise(download=mean(download), upload=mean(upload))
+#plot average median download speeds per province
+ggplot(subset,aes(x=fct_relevel(month,"Nov","Dec"), y=download, 
+         group=province, color=province))+
+  geom_point() +
+  geom_line()+
+  labs(title="Mean Median Download Speeds Per Province")+
+  ylab("Download Speed (mbps)")+
+  xlab("Month")
+#plot average median upload speeds per province
+ggplot(subset,aes(x=fct_relevel(month,"Nov","Dec"), y=upload, 
+         group=province, color=province))+
+  geom_point() +
+  geom_line()+
+  labs(title="Mean Median Uploads Speeds Per Province")+
+  ylab("Upload Speed (mbps)")+
+  xlab("Month")
+```
+
+@fig-plot-of-provincal-speeds illustrates the median upload and download speeds across all provinces in Ireland from November 2022 to October 2023. We can see that Ulster had the slowest upload and download speed throughout the last 12 months. We can clearly see an increasing trend for both download and upload speeds. We see that Leinster had the fastest speeds and fastest growth rate of download speeds in Ireland. Ulster had the slowest growth rate and slowest download speeds in Ireland. All counties had a similar growth rate in upload speeds. Ulster and Connacht saw their greatest increase in speeds from from midsummer (June-July) to present whilst Munster and Leinster saw a consistent increase month-by-month. We also see that Munster overtook Leinster to have the fastest upload speeds in Ireland.
+
+```{r}
+#| label: fig-plot-of-best-county-speeds
+#| layout-ncol: 2
+#| fig-cap: "Timeseries Plot of County Fixed Broadband Speeds For November 2022 to October 2023"
+#| fig-subcap: 
+#|   - "Mean Median County Download Speeds"
+#|   - "Mean Median County Upload Speeds"
+#find county in province with fastest download speeds for each month
+subset <- df_fixed |>
+  filter(!(month == "Oct" & year==2022)) |>
+  select(download, county, month, province) |>
+  group_by(month, province)|>
+  #extract county with maximum download speed within a province for a given month
+  slice_max(download) 
+#plot subset
+ggplot(subset,
+       aes(x=month, y=download, 
+           group=province, color=county))+
+  geom_point() +
+  geom_line()+
+  labs(title="Download Speeds For Fastest Counties")+
+  ylab("Download Speed (mbps)")+
+  xlab("Month")
+#find county in province with fastest upload speeds for each month
+subset <- df_fixed |>
+  filter(!(month == "Oct" & year==2022)) |>
+  select(upload, county, month, province) |>
+  group_by(month, province)|>
+  #extract county with maximum download speed within a province for a given month
+  slice_max(upload) 
+#plot subset
+ggplot(subset,
+       aes(x=month, y=upload, 
+           group=province, color=county))+
+  geom_point() +
+  geom_line()+
+  labs(title="Upload Speeds For Fastest Counties")+
+  ylab("Upload Speed (mbps)")+
+  xlab("Month")
+```
+
+@fig-plot-of-best-county-speeds illustrates the counties that were fastest in each province and their speed for a given month from November 2022 to October 2023. We see Galway was consistently fastest in Connacht for both download and upload speed, with the exception of October 2023 when Roscommon happened to overtake in upload speeds. All other provinces saw at least two different counties rank first in fastest speeds.
+
+\section{Analysis of Mobile Broadband Speeds}
+
+Mobile broadband enhances communication, information access, and convenience for people on the go. In this section we looked at mobile broadband speeds in Ireland. Our aim was to provide an overview of the mobile speeds expected in Ireland and any trends observed.
+
+\subsection{Counties With Best and Worst Mobile Broadband Speeds}
+
+We found `r df_mobile[which.max(df_mobile$download),'county']` to have the fastest median download speed in Ireland as of October 2023 with a median speed of `r df_mobile[which.max(df_mobile$download),'download']` mbps. This is about 3 times faster than `r df_mobile[which.min(df_mobile$download),'county']` which had the slowest speed, with a median speed of `r df_mobile[which.min(df_mobile$download),'download']` mbps. We found `r df_mobile[which.max(df_mobile$upload),'county']` to have the fastest median upload speed in Ireland as of October 2023 with a median speed of `r df_mobile[which.max(df_mobile$upload),'upload']` mbps. This is about 2 times faster than `r df_mobile[which.min(df_mobile$upload),'county']` which had the slowest speed, with a median speed of `r df_mobile[which.min(df_mobile$upload),'upload']` mbps. Mobile broadband speeds were, across the board, slower than fixed broadband speeds.
+
+```{r}
+#| label: tbl-best-worst-mobile
+#| tbl-cap: Fastest and Slowest Counties In Each Month.
+#| tbl-colwidths: [80,60]
+bestWorstMobile <- df_mobile |>
+  filter(!(month == "Oct" & year==2022)) |>
+  group_by(month) |>
+  summarize(`Best Download` = counties[which.max(download)], 
+            `Worst Download` = counties[which.min(download)],
+            `Best Upload` = counties[which.max(upload)],
+            `Worst Upload` = counties[which.min(upload)])
+knitr::kable(bestWorstMobile)
+```
+
+@tbl-best-worst-mobile illustrates the counties with the fastest and slowest mobile speed for each month from November 2022 to October 2023. We see that Dublin had the fastest download speeds for the majority of months (6 out of 12 months). Cavan had the slowest download speeds for the majority of months (9 out of 12 months) and ended up being slowest in October 2023. Leitrim had the best upload speeds for 11 out of the past 12 months, and ended up being the best in October 2023. Cavan had the worst upload speed and ended up being the worst in October 2023. In contrast to the fixed broadband speed there was not a distinct provincial difference in mobile speeds.
+
+\subsection{Regional Difference In Mobile Broadband Speeds}
+
+```{r}
+#| warning: false
+#| label: fig-plot-of-mean-county-mobile
+#| layout-ncol: 2
+#| fig-cap: "Timeseries Plot of Provincial Mobile Broadband Speeds For November 2022 to October 2023"
+#| fig-subcap: 
+#|   - "Mean Median Download Speeds"
+#|   - "Mean Median Upload Speeds"
+#create summary set that has average speeds of all counties in a province
+subset<-df_mobile |>
+  filter(!(month == "Oct" & year==2022), complete.cases(download)) |>
+  group_by(province,month)|>
+  summarise(download=mean(download), upload=mean(upload))
+#Plot download
+ggplot(subset,aes(x=fct_relevel(month,"Nov","Dec"), y=download, 
+         group=province, color=province))+
+  geom_point() +
+  geom_line()+
+  labs(title="Mean Median Download Speeds Per Province")+
+  ylab("Download Speed (mbps)")+
+  xlab("Month")
+#Plot Upload
+ggplot(subset,aes(x=fct_relevel(month,"Nov","Dec"), y=upload, 
+         group=province, color=province))+
+  geom_point() +
+  geom_line()+
+  labs(title="Mean Median Upload Speeds Per Province")+
+  ylab("Upload Speed (mbps)")+
+  xlab("Month")
+```
+
+@fig-plot-of-mean-county-mobile illustrates the median upload and download speeds across all provinces in Ireland from November 2022 to October 2023. We see that Ulster had the slowest upload and download speed throughout the last 12 months. This was same as found for fixed broadband. We can see an increasing trend for download speeds for all provinces except Ulster. Leinster, Munster and Connacht all had similar mobile download speeds whilst Ulster had the worst speeds. In contrast, mobile upload speeds saw little increase in Munster and Leinster but a very large increase in Connacht. We also see that in Ulster speeds began to decrease from mid spring (April onwards).
+
+```{r}
+#| label: fig-plot-of-best-county-mobile
+#| layout-ncol: 2
+#| fig-cap: "Timeseries Plot of County Mobile Broadband Speeds For November 2022 to October 2023"
+#| fig-subcap: 
+#|   - "Mean Median County Download Speeds"
+#|   - "Mean Media County Upload Speeds"
+#find county in province with fastest download speeds for each month
+subset <- df_mobile |>
+  filter(!(month == "Oct" & year==2022)) |>
+  select(download, county, month, province) |>
+  group_by(month, province)|>
+  #extract county with maximum download speed within a province for a given month
+  slice_max(download) 
+#plot results
+ggplot(subset,
+       aes(x=month, y=download, 
+           group=province, color=county))+
+  geom_point() +
+  geom_line()+
+  labs(title="Download Speeds For Fastest Counties")+
+  ylab("Download Speed (mbps)")+
+  xlab("Month")
+#find county in province with fastest upload speeds for each month
+subset <- df_mobile |>
+  filter(!(month == "Oct" & year==2022)) |>
+  select(upload, county, month, province) |>
+  group_by(month, province)|>
+  #extract county with maximum upload speed within a province for a given month
+  slice_max(upload) 
+#plot results
+ggplot(subset,
+       aes(x=month, y=upload, 
+           group=province, color=county))+
+  geom_point() +
+  geom_line()+
+  labs(title="Upload Speeds For Fastest Counties")+
+  ylab("Upload Speed (mbps)")+
+  xlab("Month")
+```
+
+@fig-plot-of-best-county-mobile illustrates the counties that were fastest in each province and their speeds for a given month from November 2022 to October 2023. We see Donegal had consistently slowest median mobile download and upload speeds. Most counties had similar median mobile download speed throughout the year. Leitrim was found to be consistently fastest in median mobile upload speed.
+
+\section{Summary and Conclusions}
+
+In this analysis we looked at Ireland's broadband providers and speeds. The analysis was split into two sections. In the first section we analysed broadband providers in Ireland. We found Virgin Media to be the best provider with a minimum median download speed of 80 mbps and SCC Broadband to be the worst provider with maximum speeds of \~26 mbps, less than a third the minimum speeds customers got with Virigin Media. We found Eir, Sky, and Vodafone to be most prevalent in Ireland, with Eir ranking first, and observed to be providing broadband to customers in all counties. We found there was a regional difference between provider speeds, but that sometimes a regional provider is better than a national provider. In the second section we analysed fixed and mobile broadband speeds. We found Laois to have the fastest median download speed and Longford to have the slowest median download speeds as of October 2023. We found Louth to have the fastest median upload speed and Longford to have the slowest median upload speeds as of October 2023. We found all counties to have increasing fixed and mobile broadband speeds. \newpage
+
+```{=tex}
+\part{Part 2 (R Package): R Package `collinear'}
+\section{Introduction}
+```
+The `collinear` R package \cite{collinear} is a multicollinearity management library that allows users to easily identify and filter predictors out that have multicollinearity.
+
+This is particularly useful in linear regression. When the predictors are not correlated, the least squares estimator of, say, $\hat{\beta}_i$ is stable, i.e. $\hat{\beta}_i$ does not change when other predictors are added to the model. If there is a strong correlation between two predictors, say $X_i$ and $X_j$ , then the estimate of $\hat{\beta}_i$ will strongly depend on whether $X_j$ is included in the model, and vice-versa. Multicollinearity occurs when predictors are strongly correlated.
+
+The R package allows for the management of multicollinearity. It provides several methods for identify and filtering out correlated predictors.
+
+\section{Model Dataset}
+
+The dataset we used for illustrating the functionality of the R package is the abalone dataset \cite{abalone}. These data contained several predictors that may or may not have been related to the age of an abalone. The age of an abalone was the number of rings on its shell.
+
+The following code chunk loaded the dataset from the UC Irvine Machine Learning Repository.
+
+```{r}
+#fit url in code chunk
+url <- paste('https://archive.ics.uci.edu/ml/machine-learning-databases/',
+             'abalone/abalone.data', sep="")
+#load data from url
+abalone <- read.table(url,
+                      header=FALSE, 
+                      sep=',',
+                      col.names = c("Sex","Length","Diameter","Height",    
+                     "Whole","Shucked","Viscera",
+                     "Shell","Rings"))
+str(abalone)
+```
+
+The dataset contains $4177$ observations, $8$ predictors and $1$ response.
+
+\section{Main Functionality}
+
+The R package contains several functions useful for multicollinearity management. We loaded the library with in the following code chunk
+
+```{r}
+library(collinear)
+```
+
+We describe five different functions from the package.
+
+\subsection{collinear}
+
+The function `collinear` allows for filtering of a dataset, via pairwise correlation and variance inflation factor, to remove correlated predictors. The function has several arguments used for fine control of the function.
+
+A short description of its usage is described in the code chunk below
+
+```{r}
+#| eval: false
+collinear(
+  df = NULL, #dataframe to apply filtering
+  response = NULL, #name of response variable to exclude
+  predictors = NULL, #(optional) name of/set of predictors to apply filter
+  preference_order = NULL, #set illustrating ordering of predictors
+  cor_method = "pearson", #name of correlation method ("pearson", "spearman")
+  max_cor = 0.75, #maximum correlation predictors can have before being removed
+  max_vif = 5, #same as max_cor but using variance inflation factor
+  encoding_method = "mean" 
+)
+```
+
+The following code chunk illustrates an example use case
+
+```{r}
+filtered_predictors <- collinear( df = abalone,
+  response = "Rings",
+  predictors = colnames(abalone)[c(-9)],
+  max_cor = 0.85,
+  max_vif = 4,
+  encoding_method = "mean"
+)
+filtered_predictors
+```
+
+We see `collinear` has identified all but "Sex", "Height", and "Shucked" to have correlation above $0.85$ or variance inflation factor above $4$.
+
+\subsection{cor\_d and cor\_matrix}
+
+The function `cor_df` and related function `cor_matrix` return pairwise correlations in a dataframe, and matrix respectively. These are useful if we want to know which pairs are most correlated.
+
+A short description of `cor_df` is provided belows
+
+```{r}
+#| eval: false
+cor_df(
+  df = NULL, #dataframe to find correlated pairs
+  response = NULL, #name of response variable to exclude
+  predictors = NULL, #name or list of names of predictors to compute correlation
+  cor_method = "pearson", #name of correlation method to use (pearson or spearman)
+  encoding_method = "mean"
+)
+```
+
+The following code chunk illustrates an example use case
+
+```{r}
+#| label: tbl-correlation-df
+#| tbl-cap: First 6 rows of correlation dataframe
+#| tbl-colwidths: [60,40]
+correlation_df <-cor_df(
+  df = abalone, #dataframe to find correlated pairs
+  response = "Rings", #name of response variable to exclude
+  cor_method = "pearson", #name of correlation method to use (pearson or spearman)
+  encoding_method = "mean"
+)
+knitr::kable(head(correlation_df))
+```
+
+@tbl-correlation-df illustrates the correlation coefficients between several variables. We see there are several highly correlated predictors in the abalone dataset.
+
+The related function `cor_matrix` returns a correlation matrix instead of a dataframe. It takes the same arguments as `cor_df`. The following code chunk illustrates an example use case
+
+```{r}
+#| label: tbl-correlation-matrix
+#| tbl-cap: First 6 rows of correlation matrix
+#| tbl-colwidths: [60,40]
+correlation_matrix <-cor_matrix(
+  df = abalone, #dataframe to find correlated pairs
+  response = "Rings", #name of response variable to exclude
+  cor_method = "pearson", #name of correlation method to use (pearson or spearman)
+  encoding_method = "mean"
+)
+knitr::kable(head(correlation_matrix))
+```
+
+@tbl-correlation-matrix illustrates the same information as @tbl-correlation-df except in matrix form. We see a similar output to `cor_df` except the data is stored as a matrix instead of a dataframe.
+
+\subsection{cor\_select}
+
+The function `cor_select` is used to select predictors with correlation coefficient less than a pre-defined maximum. This is useful if we want to filter out predictors and prevent multicollinearity. By default a maximum correlation coefficient of $0.75$ is assumed.
+
+A short description of `cor_select` is provided below
+
+```{r}
+#| eval: false
+cor_select(
+  df = NULL, #dataframe to find correlated pairs
+  response = NULL, #name of response variable to exclude
+  predictors = NULL, #name or list of names of predictors to select and filter
+  preference_order = NULL, #optional ordering of predictors
+  cor_method = "pearson", #name of correlation method ("pearson", "spearman")
+  max_cor = 0.75, #correlated pairs above this maximum are filtered
+  encoding_method = "mean"
+)
+```
+
+The following code chunk illustrates an example use case
+
+```{r}
+corr_filtered <- cor_select(
+  df = abalone, #dataframe to find correlated pairs
+  response = "Rings", #name of response variable to exclude
+  cor_method = "pearson", #name of correlation method to use (pearson or spearman)
+  max_cor = 0.85,
+  encoding_method = "mean"
+)
+corr_filtered
+```
+
+We see `cor_select` has identified all but "Sex", "Height", and "Shucked" to have correlation above $0.85$. This is the same result as we've gotten from `collinear`. This is because `cor_select` is used as a sub-routine in `collinear`.
+
+\subsection{vif\_df}
+
+The function `vif_df` computes the Variance Inflation Factor (VIF) for each predictor in a dataset. The VIF is a measure of multicollinearity. The VIF for predictor $i$ is defined as, $$VIF_i=\frac{1}{1-R^2_i},$$ where $R^2_i$ is the coefficient of determination for a model with predictor $i$ removed. A VIF of $4$ or above indicates multicollinearity.
+
+A short description of `vif_df` is provided below
+
+```{r}
+#| eval: false
+vif_df(
+  df = NULL, #dataframe to find correlated pairs
+  response = NULL, #name of response variable to exclude
+  predictors = NULL, #name or list of names of predictors to compute correlation
+  encoding_method = "mean"
+)
+```
+
+The following code chunk illustrates an example use case
+
+```{r}
+#| label: tbl-vif-df
+#| tbl-cap: First 6 rows of variance inflation factor dataframe
+#| tbl-colwidths: [60,40]
+pred_vif <- vif_df(
+  df = abalone, 
+  response = "Rings"
+)
+knitr::kable(head(pred_vif))
+```
+
+@tbl-vif-df illustrates the variance inflation factor of each variable. We see that "Sex" and "Height" have VIF below $4$, whilst all other predictors have VIF above $4$.
+
+\subsection{vif\_select}
+
+The function `vif_select` is used to select predictors with VIF value less a pre-defined maximum. This is useful if we wish filter out predictors and prevent multicollinearity. By default a VIF tolerance of $5$ is assumed.
+
+A short description of `vif_select` is provided below
+
+```{r}
+#| eval: false
+vif_select(
+  df = NULL, #dataframe to find correlated pairs
+  response = NULL, #name of response variable to exclude
+  predictors = NULL, #name or list of names of predictors to select and filter
+  preference_order = NULL, #optional ordering of predictors
+  max_vif = 5, # predictors with VIF value above max_vif are filtered out 
+  encoding_method = "mean"
+)
+```
+
+The following code chunk illustrates an example use case
+
+```{r}
+vif_filtered <- vif_select(
+  df = abalone,
+  response = "Rings",
+  max_vif = 4
+)
+vif_filtered
+```
+
+We see `vif_select` has identified all but "Sex", "Height", and "Viscera" to have VIF above $4$. This is different to the same result we've gotten from `cor_selectr`.
+
+\section{Summary}
+
+The `collinear` R package allows a user to identify and filter predictors out that have multicollinearity. In this short overview of the package we looked at the following functions
+
+-   `collinear`: Function that filters a dataset, via pairwise correlation and variance inflation factor, to remove correlated predictors.
+-   `cor_df` and `cor_matrix`: Functions that return pairwise correlations in a dataframe and matrix.
+-   `cor_select`: Function to select predictors with correlation coefficient less than a pre-defined maximum.
+-   `vif_df`: Function that computes the Variance Inflation Factor (VIF) for each predictor in a dataset.
+-   `vif_select`: Function to select predictors with VIF value less a pre-defined maximum.
+
+```{=tex}
+\newpage
+\part{Part 3 (Functions/Programming): Function - cooks\_distance}
+\section{Introduction}
+```
+The Cook's distance is a measure of influence an individual points has in a least-squares regression model. The statistic is given by the following formula \cite{atkinson} $$D_i=\sum_{i=1}^n\frac{(\hat{y}_{i,-j}-\hat{y}_i)^2}{\hat{\sigma}^2(p+1)},$$ where $\hat{y}_{i,-j}$ is the predicted value of observation $i$ with observation $j$ removed, $\hat{y}_{i}$ is the predicted value with all observations, $p$ is the number of predictors, and $\hat\sigma^2$ is the model sample variance. $D_i$ measures the sum of squared changes in the predictions when observation $j$ is not in the model.
+
+A large values of $D_i$ indicates observation $i$ is an influential points. A common comparison is to use $\frac{4}{n}$ as a cut-off point. If $D_i>\frac{4}{n}$ we classify observation $i$ as influential.
+
+This section will look at implementing a function to compute Cook's distance for each observation in a least-squares regression model. We will create an S3 class that will store the computed distances, the points that are influential, and the number of influential points. We will then create and describe the function that computes Cook's distances for each point. Finally, we will detail implementations of dispatch capabilities for the S3 class; print, summary and plot functions.
+
+\section{The Class `cooksDistance'}
+
+The following code chunk creates the S3 class `cooksDistance`.
+
+```{r}
+cooksDistance <- function(values, inf_points, c_off){
+  #store computed cooksDistances, points that are influential, 
+  #index of influential points, and number of inf points
+  ret <- list(y = values,
+              inf.points = inf_points, 
+              n.points = length(values),
+              n.inf_points = nrow(inf_points),
+              cutoff=c_off)
+  #register class
+  class(ret) <- "cooksDistance"
+  ret
+}
+```
+
+The custom class is used as a structure to store the following information
+
+-   \`y': Computed Cook's distances for each observation.
+
+-   \`inf.points': dataframe that stores the points which were classed as influential.
+
+-   \`n.points': number of observations in total.
+
+-   \`n.inf_points': number of influential points.
+
+-   \`cutoff': the cutoff point used to classify observations as influential.
+
+\section{The Function `cooks\_distance'}
+
+```{r}
+#Compute cooks distance and return s3 class
+cooks_distance <- function(model, cutoff=0){
+  #model matrix
+  model_df <- model.frame(model)
+  #number of observations in data
+  n <- nrow(model_df)
+  #number of covariates in model
+  p = ncol(model_df)
+  #cutoff point for observation to be an influential point
+  if (cutoff <= 0) {
+    cutoff <- 4 / n
+  }
+  #vector to be filled with cook's distance
+  distances <- numeric(n)
+  #vector to store index of influential points
+  index <- integer()
+  #current model's fitted value
+  old_fitted <- model$fitted.values
+  #variance of current model
+  mse <- sum(model$residuals^2) / n
+  #formula that created model - to be used for re-fitting
+  model_formula <- formula(model)
+  #loop through rows of the model matrix
+  #fit model with row i removed and compute cook's distance
+  #repeat for all rows of the model matrix
+  for (i in 1:n){
+    #fit model with ith row removed
+    new_model <- lm(data=model_df[-i,], formula = model_formula)
+    #make predictions with new model
+    new_fitted <- predict(new_model, model_df)
+    #compute cooks distance
+    D <- sum((old_fitted-new_fitted)^2)/((p+1)*mse)
+    #append cooks distance to array 
+    distances[i] <- D
+    #check if point an influential point
+    if (D > cutoff) {
+      #append to index IF an influential point!
+      index <- c(index, i)
+    }
+  }
+  n.inf = length(index)
+  inf_points <- NULL
+  if (n.inf != 0){
+    ip <- as.integer(rownames(model_df[index,]))
+    inf_points <- data.frame(row.index = ip,
+                             distance = distances[ip])
+    inf_points <- inf_points[order(inf_points$distance,decreasing = TRUE),]
+  }
+  ret <- cooksDistance(distances, inf_points, cutoff)
+  ret
+}
+```
+
+The function cooks_distance computes the Cook's distances for each observation of a linear model. It takes as arguments a model fitted using R's `lm()` and a cutoff point. The cutoff point is optional. A default of $4/n$ is used if no cutoff point is specified.
+
+Lines 4-22 create pre-requisite variables. \newline Line 4 stores the model's matrix. We use this later to refit the model with row $i$ removed. \newline Lines 6 and 8 compute the number of observations $n$ and number of predictors $p$.\newline Lines 10-12 compute the cutoff point if no cutoff point is passed. \newline Line 14 creates an empty vector `distances` for storing Cook's distances. \newline Line 16 creates a variable to store the indices of influential points.\newline Line 18 stores the full model's fitted values. \newline Line 20 computes the sample variance. \newline Finally, line 22 stores a reference to the formula used to fit the model. This will be used when refitting the model.
+
+Lines 26-40 sets up a loop over observations in the model, computes Cook's distance for each observation and classifies them as influential or not.\newline Line 28 fits a new model `new_model` with observation $i$ removed.\newline Line 30 computes predicted values `new_fitted` with the new model.\newline Line 32 computes the Cook's distance `D_i` for observation $i$ using the formula outlined in the Introduction.\newline Line 34 stores the compute distance in the vector `distances`.\newline Finally lines 36-39 check if the computed distance corresponds to an influential observation. If the observation is influential a reference to the index of the observation in the model's matrix is stored.
+
+Lines 41-48 creates a dataframe of influential points.\newline Line 49-50 stores the distances, influential points, and cutoff value in the S3 class `cooksDistance` and returns the class as result.
+
+\subsection{Caveats}
+
+The computation of Cook's distance is not the most efficient. For each point we must fit a new model and compute the predictions again. This is a costly operation. A more efficient way to compute the distances can be achieved using the following formula \cite{atkinson} $$D_i=\frac{h_i}{1-h_i}\frac{r_i}{p}$$ where $h_i$ is the $i^{th}$ entry of the hat matrix $H$, $r_i$ is the $i^{th}$ studentised residual $r_i=\frac{y_i-\hat{y}_i}{\sqrt{\hat\sigma^2(1-h_i)}}$ and $p$ is the number of predictors. This does not require repeated fitting of the model. The hat matrix and studentised residuals can be calculated once outside the loop, which is far cheaper than repeatedly fitting the model.
+
+The author was not able to implement this algorithm for computing the distances and so resorted to the less efficient method.
+
+\section{Print}
+
+```{r}
+#States number of points that are considered influential
+print.cooksDistance <- function(obj){
+  #If influential points found output how many
+  if (obj$n.points != 0) {
+    cat("There were", obj$n.inf_points, "influential points that require investigation.")
+  } else {  #If no influential points found say so.
+    cat("No influential points were found in the data.")
+  }
+}
+#register S3 method in quarto
+registerS3method("print", "cooksDistance", print.cooksDistance)
+```
+
+A print method outlined in the code above was created for the cooksDistance class. The method outputs the number of influential points according to Cook's distance. If no points were influential it states such.
+
+\section{Summary}
+
+```{r}
+#Reiterates "print" but also gives index and cook's distance value of point
+summary.cooksDistance <- function(obj){
+  if (obj$n.points != 0) {
+    cat("There were", obj$n.inf_points, 
+        "influential points that require investigation.\n")
+    cat("Most influential point: ", unlist(obj$inf.points[1,]), "\n")
+    cat("Least influential point: ", 
+        unlist(obj$inf.points[nrow(obj$inf.points),]), "\n")
+    cat("A cutoff point of ", signif(obj$cutoff,3), 
+        " was used to categorize influential points.")
+  } else {
+    cat("No influential points were found in the data.")
+  }
+}
+#register S3 method in quarto
+registerS3method("print", "cooksDistance", print.cooksDistance)
+```
+
+A summary method outlined in the code above was created for the cooksDistance class. The method outputs the number of influential points according to Cook's distance, which point was least influential, and which point was most influential. If no points were influential it states such.
+
+\section{Plot}
+
+```{r}
+plot.cooksDistance <- function(obj){
+  #set up an empty plot
+  maxy = max(obj$y)
+  maxy = maxy*(1.15)/(1+maxy)
+  x = seq(1:obj$n.points)
+  plot(x, seq(0, maxy,length.out=obj$n.points), type='n', 
+       main="Cook's Distance Lollipop Chart", 
+       xlab="Observations",
+       ylab="Cook's Distance")
+  #draw cutoff line
+  abline(h=obj$cutoff, col='red')
+  #add text showing tolerance value
+  text(17,
+       maxy,
+       labels=paste("Threshhold: ",as.character(signif(obj$cutoff,2))),
+       family="sans",
+       col="#fa3e0f")
+  #add points and vlines one-by-one
+  for (i in x){
+    #influential points are coloured red and have green text above them
+    if (obj$y[i] > obj$cutoff){
+      points(i,obj$y[i], col='red', pch=1)
+      lines(c(i,i),c(-1,obj$y[i]),col='red')
+      text(i,obj$y[i]*(1.1675)/(1+obj$y[i]), labels=as.character(i),col='red')
+    } else {
+      points(i,obj$y[i], col='blue', pch=1)
+      lines(c(i,i),c(-1,obj$y[i]),col='blue')
+    }
+  }
+}
+#register S3 method in quarto
+registerS3method("plot", "cooksDistance", plot.cooksDistance)
+```
+
+A plot method outlined in the code above was created for the cooksDistance class. The method creates a lollipop scatter plot of the observations. A red horizontal line is included to illustrate the cutoff point. Observations below the cutoff point are coloured blue. Observations above the cutoff point are coloured red and labelled with their index in the model matrix.
+
+\section{Example}
+
+We used the `iris` dataset \cite{iris} to illustrate the functionality of `cooks_distance`. This dataset is a built-in dataset in R and does not need to be loaded.
+
+We fitted a linear simple regression model that regressed `Petal.Length` against `Sepal.Length`, `Sepal.Width`, `Petal.Width` and `Species`. The following code chunk created the model,
+
+```{r}
+model<-lm(Petal.Length ~ Sepal.Length + Sepal.Width + Petal.Width + Species, 
+          data=iris)
+```
+
+We passed the model as argument to `cooks_distance` leaving cutoff to be automatically computed. The following code chunk commutes the Cook's distances
+
+```{r}
+comp_distances <- cooks_distance(model)
+print(comp_distances)
+```
+
+The output of the above code chunk told us there were $12$ influential points in the model. Now, we'll use `summary()` to find which points were most influential and least influential,
+
+```{r}
+summary(comp_distances)
+```
+
+We see in the output of the above code chunk that point with index $135$ was most influential with a Cook's distance of $0.1088$ and point with index $108$ was least influential with a Cook's distance of $0.03$. A cutoff point of $0.0267$ was used to classify influential points. We see that the least influential point was just above the cutoff point.
+
+Finally, we plotted all points and their Cook's distances,
+
+```{r}
+#| fig-width: 7
+#| fig-height: 6
+#| label: fig-cooks-distance
+#| fig-cap: "Lollipop chart of each observation's Cook's distance"
+plot(comp_distances)
+```
+
+@fig-cooks-distance illustrates a plot of each point's Cook's distance. We see that influential points are label by their index and coloured red, whilst non influential points are coloured blue. The red line illustrates the cutoff point and a threshold value of $0.027$ was used. \printbibliography[title=References]
