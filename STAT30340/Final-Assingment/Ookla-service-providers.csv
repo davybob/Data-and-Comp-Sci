@@ -1,0 +1,142 @@
+,,,,,,
+service,provider_name,provider_id,period,p25_download_mbps,p75_download_mbps,County
+fixed,Aptus Broadband,89560,2023-10-01,44.08,218.66,Carlow
+fixed,Imagine,1403,2023-10-01,16.43,76.28,Carlow
+fixed,Sky,126995,2023-10-01,60.05,319.54,Carlow
+fixed,Virgin Media,28333,2023-10-01,85.1,426.48,Carlow
+fixed,Vodafone,3509,2023-10-01,58.01,353.01,Carlow
+fixed,eir,652,2023-10-01,41.66,384,Carlow
+fixed,3,34690,2023-10-01,7.04,39.85,Cavan
+fixed,Arden Broadband,90073,2023-10-01,15.62,37.63,Cavan
+fixed,IMS,26726,2023-10-01,37.35,212.64,Cavan
+fixed,Imagine,1403,2023-10-01,13.76,62.68,Cavan
+fixed,Net1,8223,2023-10-01,8.83,42.05,Cavan
+fixed,Sky,126995,2023-10-01,41.44,252.3,Cavan
+fixed,Vodafone,3509,2023-10-01,41.6,281.07,Cavan
+fixed,eir,652,2023-10-01,38.75,309.88,Cavan
+fixed,BBnet,102570,2023-10-01,11.5,54.64,Claire
+fixed,Digiweb,45274,2023-10-01,26.69,318.99,Claire
+fixed,Imagine,1403,2023-10-01,26.22,69.99,Claire
+fixed,Sky,126995,2023-10-01,52.14,312.92,Claire
+fixed,Virgin Media,28333,2023-10-01,89.56,374.52,Claire
+fixed,Vodafone,3509,2023-10-01,59.68,321.15,Claire
+fixed,eir,652,2023-10-01,42.99,284.31,Claire
+fixed,Digiweb,45274,2023-10-01,47.6,331.5,Cork
+fixed,Imagine,1403,2023-10-01,19.46,70.36,Cork
+fixed,Rapid Broadband,15546,2023-10-01,11.76,29.58,Cork
+fixed,Sky,126995,2023-10-01,52.33,292.14,Cork
+fixed,Virgin Media,28333,2023-10-01,67.25,365.67,Cork
+fixed,Vodafone,3509,2023-10-01,46.61,287.17,Cork
+fixed,eir,652,2023-10-01,37.02,264.53,Cork
+fixed,Broadband Northern Ireland,235319,2023-10-01,11.72,48.92,Donegal
+fixed,Digiweb,45274,2023-10-01,65.3,404.63,Donegal
+fixed,Imagine,1403,2023-10-01,17.79,75.92,Donegal
+fixed,Sky,126995,2023-10-01,39.37,265.15,Donegal
+fixed,Vodafone,3509,2023-10-01,44.14,275.95,Donegal
+fixed,eir,652,2023-10-01,31.75,252.73,Donegal
+fixed,Sky,126995,2023-10-01,45.14,275.94,Dublin
+fixed,Virgin Media,28333,2023-10-01,77.3,366.62,Dublin
+fixed,Vodafone,3509,2023-10-01,38.81,294.92,Dublin
+fixed,eir,652,2023-10-01,34.36,223.78,Dublin
+fixed,Digiweb,45274,2023-10-01,70.3,368.39,Galway
+fixed,Lightnet,39297,2023-10-01,18.77,58.14,Galway
+fixed,Sky,126995,2023-10-01,53.22,347.5,Galway
+fixed,Virgin Media,28333,2023-10-01,41.78,358.18,Galway
+fixed,Vodafone,3509,2023-10-01,45.88,345.61,Galway
+fixed,eir,652,2023-10-01,40.55,282.84,Galway
+fixed,Digiweb,45274,2023-10-01,36.53,204.23,Kerry
+fixed,Ivertec Broadband,114875,2023-10-01,26.02,80.57,Kerry
+fixed,SCC Broadband,139012,2023-10-01,5.6,26.23,Kerry
+fixed,Sky,126995,2023-10-01,60.1,296.44,Kerry
+fixed,Vodafone,3509,2023-10-01,48.82,292.71,Kerry
+fixed,eir,652,2023-10-01,40.82,251.58,Kerry
+fixed,Digiweb,45274,2023-10-01,25.57,361.81,Kildare
+fixed,Sky,126995,2023-10-01,63.41,291.15,Kildare
+fixed,Virgin Media,28333,2023-10-01,87.36,387.8,Kildare
+fixed,Vodafone,3509,2023-10-01,51.36,324.05,Kildare
+fixed,eir,652,2023-10-01,44.37,287,Kildare
+fixed,3,34690,2023-10-01,6.29,30.08,Kilkenny
+fixed,Aptus Broadband,89560,2023-10-01,37.26,94.62,Kilkenny
+fixed,Digiweb,45274,2023-10-01,44.76,182.45,Kilkenny
+fixed,Imagine,1403,2023-10-01,19.86,79.68,Kilkenny
+fixed,Sky,126995,2023-10-01,36.74,233.86,Kilkenny
+fixed,Virgin Media,28333,2023-10-01,47.13,327.25,Kilkenny
+fixed,Vodafone,3509,2023-10-01,39.75,300.53,Kilkenny
+fixed,eir,652,2023-10-01,34.89,206.99,Kilkenny
+fixed,Sky,126995,2023-10-01,65.89,314.45,Laois
+fixed,Virgin Media,28333,2023-10-01,134.95,449.1,Laois
+fixed,Vodafone,3509,2023-10-01,50.73,343.21,Laois
+fixed,eir,652,2023-10-01,53.45,404.44,Laois
+fixed,Imagine,1403,2023-10-01,21.21,70.44,Letrim
+fixed,Sky,126995,2023-10-01,30.69,256.58,Letrim
+fixed,Vodafone,3509,2023-10-01,27.66,236.94,Letrim
+fixed,eir,652,2023-10-01,37.38,337.22,Letrim
+fixed,Digiweb,45274,2023-10-01,44.05,305.04,Limerick
+fixed,Imagine,1403,2023-10-01,14.69,67.39,Limerick
+fixed,Sky,126995,2023-10-01,56.67,319.38,Limerick
+fixed,Virgin Media,28333,2023-10-01,58.14,358.6,Limerick
+fixed,Vodafone,3509,2023-10-01,55.02,324.88,Limerick
+fixed,eir,652,2023-10-01,37.41,301.13,Limerick
+fixed,Cablecomm,27627,2023-10-01,60.14,219.89,Longford
+fixed,Imagine,1403,2023-10-01,29.86,84.7,Longford
+fixed,eir,652,2023-10-01,60.19,314.34,Longford
+fixed,Digiweb,45274,2023-10-01,45.98,338.22,Louth
+fixed,Net1,8223,2023-10-01,46.8,282.76,Louth
+fixed,Sky,126995,2023-10-01,62.85,307.81,Louth
+fixed,Virgin Media,28333,2023-10-01,105.06,395.74,Louth
+fixed,Vodafone,3509,2023-10-01,54.71,308.08,Louth
+fixed,eir,652,2023-10-01,36.24,269.54,Louth
+fixed,Atlantek Computers,66007,2023-10-01,17.53,74.52,Mayo
+fixed,Imagine,1403,2023-10-01,17.9,68.23,Mayo
+fixed,Sky,126995,2023-10-01,53.18,287.48,Mayo
+fixed,Vodafone,3509,2023-10-01,41.23,258.78,Mayo
+fixed,Westnet,209968,2023-10-01,9.69,118.47,Mayo
+fixed,eir,652,2023-10-01,33.27,290.03,Mayo
+fixed,Digiweb,45274,2023-10-01,91.85,373.08,Meath
+fixed,Imagine,1403,2023-10-01,19.69,78.33,Meath
+fixed,Sky,126995,2023-10-01,66.92,334.01,Meath
+fixed,Virgin Media,28333,2023-10-01,81.88,394.87,Meath
+fixed,Vodafone,3509,2023-10-01,45.67,282.05,Meath
+fixed,eir,652,2023-10-01,36.53,273.34,Meath
+fixed,3,34690,2023-10-01,8.18,34.36,Monaghan
+fixed,Imagine,1403,2023-10-01,25.1,81.26,Monaghan
+fixed,Net1,8223,2023-10-01,33.82,216.47,Monaghan
+fixed,Sky,126995,2023-10-01,50.64,260.71,Monaghan
+fixed,Vodafone,3509,2023-10-01,44.37,278.36,Monaghan
+fixed,eir,652,2023-10-01,38.91,273.5,Monaghan
+fixed,Sky,126995,2023-10-01,70.68,241.73,Offaly
+fixed,Virgin Media,28333,2023-10-01,128.96,430.41,Offaly
+fixed,Vodafone,3509,2023-10-01,56.97,319.43,Offaly
+fixed,eir,652,2023-10-01,39.73,300.89,Offaly
+fixed,Digiweb,45274,2023-10-01,45.37,255.05,Sligo
+fixed,Sky,126995,2023-10-01,49.05,304.4,Sligo
+fixed,Virgin Media,28333,2023-10-01,39.22,284.82,Sligo
+fixed,Vodafone,3509,2023-10-01,49.39,283.62,Sligo
+fixed,eir,652,2023-10-01,37.17,153.4,Sligo
+fixed,Imagine,1403,2023-10-01,17.2,65.33,Tipperary
+fixed,Sky,126995,2023-10-01,56.45,295.47,Tipperary
+fixed,Virgin Media,28333,2023-10-01,54.99,366.99,Tipperary
+fixed,Vodafone,3509,2023-10-01,41.07,270.92,Tipperary
+fixed,eir,652,2023-10-01,41.33,272.75,Tipperary
+fixed,Digiweb,45274,2023-10-01,34.65,107.71,Waterford
+fixed,Sky,126995,2023-10-01,56.24,281.78,Waterford
+fixed,Virgin Media,28333,2023-10-01,84.85,365.3,Waterford
+fixed,Vodafone,3509,2023-10-01,46.04,326.05,Waterford
+fixed,eir,652,2023-10-01,32.88,293.08,Waterford
+fixed,Imagine,1403,2023-10-01,17.2,57.47,Westmeath
+fixed,Sky,126995,2023-10-01,69.83,339.64,Westmeath
+fixed,Virgin Media,28333,2023-10-01,89.47,383.79,Westmeath
+fixed,Vodafone,3509,2023-10-01,55.57,326.54,Westmeath
+fixed,eir,652,2023-10-01,42.53,311.76,Westmeath
+fixed,Digiweb,45274,2023-10-01,19.58,175.44,Wexford
+fixed,Imagine,1403,2023-10-01,15.92,62.64,Wexford
+fixed,Sky,126995,2023-10-01,48.26,242.31,Wexford
+fixed,Virgin Media,28333,2023-10-01,94.41,432.01,Wexford
+fixed,Vodafone,3509,2023-10-01,56.45,349.17,Wexford
+fixed,eir,652,2023-10-01,40.79,283.04,Wexford
+fixed,Digiweb,45274,2023-10-01,29.43,115.63,Wicklow
+fixed,Imagine,1403,2023-10-01,16.54,84.49,Wicklow
+fixed,Sky,126995,2023-10-01,54.75,281.77,Wicklow
+fixed,Virgin Media,28333,2023-10-01,89.7,374.03,Wicklow
+fixed,Vodafone,3509,2023-10-01,50.96,285.25,Wicklow
+fixed,eir,652,2023-10-01,40.75,254.06,Wicklow
