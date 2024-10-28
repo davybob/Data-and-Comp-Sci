@@ -1,0 +1,279 @@
+---
+title: "STAT40850 Assignment 1"
+subtitle: "David Lisovski - 18306686"
+format: 
+   pdf: 
+    output-file: "Assignment-1-David_Lisovski-18306686"
+    output-ext:  "pdf"
+editor: visual
+---
+
+In this assignment we compared the effectiveness of two different teaching methods in helping students pass an exam: A current method (Method A) and a new method (Method B). Two groups of students took the same exam. Group A were taught with Method A. There were $n_A=296$ students in group A and $x_A=169$ passed the exam. Group B were taught with Method B. There were $n_B=380$ students in group B and $x_B=247$ passed the exam.
+
+The goal of this comparison was twofold: We wanted an estimated pass rate for Method A ($\theta_A$), and assess whether Method B was more successful than Method A ($\theta_A > \theta_B$).
+
+Our analysis used a Beta-Binomial Bayesian Model to model the outcomes (student pass/fail) for each method. A student's exam outcome can be modeled via a Bernoulli distribution where the parameter of interest $\theta$ is the probability of passing the exam. Hence a group of students can be modeled via a Binomial distribution. If we let $X$ represent the number of students that pass an exam, then $$X\ |\ \theta \sim \text{Binomial}(n,\theta),$$ where the parameter of interest $\theta$ is aforementioned.
+
+Question 1 (The Beta prior)
+
+From previous experience, the mean pass rate $\theta_A$ for an exam using teaching Method A was $$E(\theta_A) = 0.65.$$ We modeled the prior assumption of $\theta_A$ with a Beta distribution with mean $0.65$. The mean of a Beta distribution is given by $$E(\theta_A) =\frac{\alpha}{\alpha+\beta}.$$ We substituted our prior assumption for $E(\theta_A)$ and made $\beta$ the subject and got the following relationship, $$\beta = \frac{7}{13}\alpha.$$ We used the above relationship to plot three prior distributions $\text{Beta}(\alpha=13,\beta= 7), \text{Beta}(\alpha=26,\beta=14),$ and $\text{Beta}(\alpha=39,\beta=21).$ The following code chunk plots the three prior distributions.
+
+{r}
+#| layout-ncol: 3
+#| label: fig-prior
+#| fig-cap: "PDF of Beta distribution with varying shape/size parameters"
+#| fig-subcap: 
+#|   - "PDF of Beta(13, 7)"
+#|   - "PDF of Beta(26, 14)"
+#|   - "PDF of Beta(39, 21)"
+
+library(ggplot2)
+plot.beta <- function(alpha, beta, title) {
+  ggplot()+
+    stat_function(color="black",
+                  geom = "polygon",
+                  fill="lightblue",
+                  alpha=0.25,
+                  fun = function(x) dbeta(x,alpha,beta))+
+    labs(x=expression(theta),
+         y="Probability Density",
+         title=title)
+}
+
+alpha1 <- 13
+alpha2 <- 26
+alpha3 <- 39
+beta1 <- alpha1*7/13
+beta2 <- alpha2*7/13
+beta3 <- alpha3*7/13
+
+plot.beta(alpha1, beta1, expression(paste("PDF of Beta(13, 7)")))
+plot.beta(alpha2, beta2, expression(paste("PDF of Beta(26, 14)")))
+plot.beta(alpha3, beta3, expression(paste("PDF of Beta(39, 21)")))
+
+@fig-prior illustrates the PDFs of the prior distributions. The distributions are all roughly symmetric around $\theta_A=0.65$. We see that the probability density (variance) decreases as the as the parameters $\alpha$ and $\beta$ increase. We did not have a lot of prior information about the pass rate for students taught with Method A, so we used the least informative prior. In our case we used $$\theta_A \sim Beta(13,7).$$ A plot of the prior is illustrated in @fig-prior (a).
+
+Question 2 (The Posterior)
+
+We estimated the posterior distribution $p(\theta \ | \ x)$ by combining the prior distribution $p(\theta)$ with the Binomial likelihood using Bayes' theorem. The posterior distribution $p(\theta \ | \ x)$ is $$p(x \ | \ \theta) = \frac{p(\theta \ | \ x)p(\theta)}{p(x)},$$ $$ \implies p(x \ | \ \theta) = \frac{\theta^x(1-\theta)^{n-x}\times\text{Beta}(\alpha,\beta)}{B(x+\alpha, n-x+\beta)},$$ $$\implies \theta \ | \ x \sim \text{Beta}(x+\alpha, n-x+\beta),$$ where $x$ is the number of passes by $n$ students and $\alpha, \beta$ are parameters of the Beta prior. The following code chunk plots the posterior distribution using our assumed prior $\beta(13, 7)$ and observed data ($n_A=296, x_A=169$).
+
+{r}
+#| label: fig-posterior
+#| fig-cap: 
+#|   - "Plot of Posterior PDF Beta(169+13, 130+7)"
+#Beta prior parameters
+alpha <- 13
+beta <- alpha*7/13
+#observed data
+xA <- 169
+nA <- 296
+#plot posterior
+ggplot(data.frame(x = c(0.4, 0.75)), aes(x)) +
+  scale_fill_brewer("x") +
+  stat_function(
+    n = 512,
+    fun = function(x) dbeta(x,xA+alpha,nA-xA+beta),
+    geom = "area",
+    colour = "grey",
+    fill = "lightblue"
+  )+
+  labs(x=expression(theta),
+       y="Probability Density",
+       title="Plot of Posterior PDF Beta(169+13, 130+7)")
+
+@fig-posterior illustrates the posteriors distribution of $\theta_A \ | \ x_A$. We see that, compared with the prior, the posterior has shifted to be centered at $\sim0.57$ but has otherwise retained its symmetric shape. This suggests our assumption of $E(\theta_A)=0.6$ was well informed.
+
+Question 3 (Results)
+
+{r}
+#| label: fig-posterior-test
+#| warning: false
+#| fig-cap: 
+#|   - "Plot of posterior with 2.5% and 97.5% quantiles."
+#95% confidence interval break points
+breaks <- qbeta(c(0,0.025,0.975,1),xA+alpha,nA-xA+beta)
+#plot curve, colour 2.5% and 97.5% regions, mark prior assumption of E(theta_A)
+ggplot(data.frame(x = c(0.4, 0.75)), aes(x)) +
+  scale_fill_brewer("x") +
+  stat_function(
+    n = 512,
+    fun = function(x) dbeta(x,xA+alpha,nA-xA+beta),
+    geom = "area",
+    colour = "gray30",
+    aes(
+      fill = after_stat(x) |> cut(!!breaks),
+      group = after_scale(fill)
+    )
+  )+
+  geom_label(aes(0.63, 12.5), 
+             label = expression(paste("E(",tilde(theta)[A],")")), 
+             show.legend = FALSE)+
+  geom_vline(xintercept = 0.6, linetype="dashed", color = "black", size=1)+
+  labs(x=expression(theta[A]),
+       y="Probability Density",
+       title="Plot of posterior with 2.5% and 97.5% quantiles.")
+
+@fig-posterior-test illustrates the posterior distribution with 2.5% and 97.5% quantiles. The dotted black line represents the prior assumption $E(\theta_A)=0.6$. We found the distribution of $\theta_A$ was roughly symmetric around $\theta_A=0.577$. The 95% confidence interval is given by $\theta_A\in(0.53,0.63)$. The plot and confidence interval clearly indicated there was not enough evidence against $\theta_A=0.6$ a posteriori.
+
+Question 4 (Posterior Predictive Distribution)
+
+We simulated $300$ observations from the posterior distribution via Monte Carlo sampling to test whether the model was an appropriate fit to the data. We chose $300$ samples because there were about $300$ samples in our dataset. The following code chunk runs the simulation and plots a histogram of the $300$ observations.
+
+{r}
+#| label: fig-monte-carlo
+#| fig-cap: 
+#|   - "Histogram of 300 Simulated Observations."
+
+set.seed(12)
+samples <- 300
+#generate random samples from theta_A posterior distribution 
+theta_samples <- rbeta(samples,xA+alpha, nA-xA+beta)
+#generate random observations from posterior predictive distribution
+x_bar <- rbinom(samples, nA, theta_samples)
+#plot histogram
+hist(x_bar, main="Histogram of 100 Simulated Observations.",
+     xlab=expression(tilde(x)[A]),
+     ylab="Count")
+
+@fig-monte-carlo illustrates the distribution of the $300$ simulated observations. We found the samples to be close to normally distributed around $165-170$ with the majority of the samples between $150$ and $190$.
+
+{r}
+summary(x_bar)
+
+The above code chunk output shows the Median ($170$) to coinside with the Mean ($170.6$). This indicates the distribution is symmetric.
+
+{r}
+quantile(x_bar, probs = c(0.025, 0.5, 0.975))
+
+The above code chunk output gives the 95% confidence interval for the observed data. We found the observed data ($x_A=169$) to be in reasonable agreement with the simulated mean and median from the posterior predictive distribution ($\text{mean}(\tilde{x}_A)=170$, and $\text{med}(\tilde{x}_A)=170.6$) and so conclude that the model is reasonable.
+
+Question 5 & 6 (Estimating Posterior Distribution With Stan)
+
+In this part we used Stan, a probabilistic programming language, to model the posterior distribution of the probability of passing an exam with Method A ($\theta_A$), Method B ($\theta_B$), and the difference between the two success probabilities ($\theta_{diff} = \theta_A-\theta_B$). We modeled the prior distributions of $\theta_A$ and $\theta_B$ with $Beta(3,2)$.
+
+{r}
+#| label: fig-curve-beta23
+#| fig-cap: 
+#|   - "Plot of Beta(3,2)"
+plot.beta(3,2, "Plot of PDF of Beta(3,2)")
+
+@fig-curve-beta23 illustrates a plot of the prior. The distribution is left-skewed with the majority of mass occurring $\theta>0.5$. This reflects our prior assumption that $E(\theta_A) = 0.6$. The Stan code used to model the distribution is illustrated in the code section below
+
+{c}
+#| eval: false
+//define data variables
+data {
+    //number of students and successes for Method A
+    int <lower=0> nA;
+    int <lower=0, upper=nA> xA;
+
+    //number of students and successes for Method B
+    int <lower=0> nB;
+    int <lower=0, upper=nB> xB;
+
+  }
+//define model parameters 
+  parameters {
+    real <lower=0, upper=1> thetaA;
+    real <lower=0, upper=1> thetaB;
+  }
+//define the models 
+  model{
+    //theta_A and theta_B priors are both assumed Beta(3,2)
+    thetaA ~ beta(3,2);
+    thetaB ~ beta(3,2);
+    //number of successes distributed as binomial distribution
+    xA ~ binomial(nA,thetaA);
+    xB ~ binomial(nB,thetaB);
+  }
+//define any generated quantities
+  generated quantities {
+    real theta_diff = thetaB-thetaA;
+  }
+
+We loaded the Stan code into R using rstan library. The following code chunk loads the Stan model, computes the estimated posterior distribution $P(\theta_A \ | \ x_A)$, $P(\theta_B \ | \ x_B)$ and $P(\theta_{diff} \ | \ \theta_A,\theta_B)$ and draws random samples from the posterior distributions.
+
+{r}
+#| output: false
+library(rstan)
+#load dataset
+samples_A <- 296
+successes_A <- 169
+
+samples_B <- 380
+successes_B <- 247
+#define stan code
+stancode <- 
+'
+data {
+    int <lower=0> nA;
+    int <lower=0, upper=nA> xA;
+
+    int <lower=0> nB;
+    int <lower=0, upper=nB> xB;
+  }
+  parameters {
+    real <lower=0, upper=1> thetaA;
+    real <lower=0, upper=1> thetaB;
+  }
+  model{
+    thetaA ~ beta(3,2);
+    thetaB ~ beta(3,2);
+    xA ~ binomial(nA,thetaA);
+    xB ~ binomial(nB,thetaB);
+  }
+  generated quantities {
+    real theta_diff = thetaB-thetaA;
+  }  
+'
+#create posterior distribution using stan code
+BB_model <- stan_model(model_code = stancode)
+
+#sample from posterior distribution
+BB_posterior <- sampling(BB_model,
+                         iter = 1500,
+                         seed = 1,
+                         data = list(nA=samples_A, xA=successes_A, 
+                                     nB=samples_B, xB=successes_B))
+
+The following code chunk prints a summary of the samples draw from the model.
+
+{r}
+#summarize results
+print(BB_posterior, pars = c('thetaA', 'thetaB', 'theta_diff'))
+
+The summary above illustrated the output of the model. Sampling was done from 4 Markov chains 1500 times. Half of the iterations ($750$) were used for warmup. All observations were saved ($thin=1$). A total of $3000$ samples were taken though only ~$2500$ were considered independent. The exact number of independent samples is given by $n_{eff}$. We found $Rhat=1$ which indicated the algorithm worked well and converged successfully. After fitting the model we plotted the results. The following code chunk plots the posterior distributions for $\theta_A, \theta_B,$ and $\theta_{diff}$.
+
+{r}
+#| warning: false
+#| label: fig-posterior-samples
+#| fig-cap: 
+#|   - "Histogram of posterior distribution for all quantities"
+#load plotting library
+library(bayesplot)
+#plot posterior samples
+posteriors <- as.data.frame(BB_posterior)
+posteriors <- posteriors[,c('thetaA', 'thetaB', 'theta_diff')]
+mcmc_hist(posteriors)
+
+@fig-posterior-samples illustrates the posterior distributions for $\theta_A$, $\theta_B$, and $\theta_{diff}$. We used bayesplot package for R to visualize the posterior distributions.
+
+{r}
+summary(posteriors$thetaA)
+quantile(posteriors$thetaA, probs = c(0.025, 0.5, 0.975))
+
+We observed $E(\theta_A) = 0.57$, with 95% of observations (95% high density posterior interval) in the interval $(0.51,0.62)$. We saw in the plot the distribution is normally distributed and centered around $0.57$. The distribution is symmetric because the median $0.57$ was equal to the mean $0.57$.
+
+{r}
+summary(posteriors$thetaB)
+quantile(posteriors$thetaB, probs = c(0.025, 0.5, 0.975))
+
+We observed $E[\theta_B] = 0.65$, with 95% of observations (95% high density posterior interval) in the interval $(0.61,0.70)$. We saw in the plot the distribution is normally distributed and centered around $0.65$. The distribution is symmetric since the median $0.65$ is equal to the mean $0.65$.
+
+{r}
+summary(posteriors$theta_diff)
+quantile(posteriors$theta_diff, probs = c(0.025, 0.5, 0.975))
+
+We observed $E[\theta_{diff}] = 0.08$, with 95% of observations (95% high density posterior interval) in the interval $(0.01,0.15)$. We saw in the plot the distribution is normally distributed and centered around $0.08$. The distribution is symmetric since the median $0.08$ is equal to the mean $0.08$.
+
+The results provide evidence that Method B has a higher exam success rate compared to Method A. The 95% high density posterior interval for $\theta_{diff}$ did not contain the origin which indicated there was evidence at the 5% confidence level that Method B resulted, on average, a higher exam success rate compared to Method A. We conclude that Method B resulted in, on average, an 8% higher success rate in exams compared to Method A.
