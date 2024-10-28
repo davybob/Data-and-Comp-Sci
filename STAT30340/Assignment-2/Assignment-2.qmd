@@ -1,0 +1,422 @@
+---
+title: "STAT30340 Assignment 2"
+subtitle: "David Lisovski - 18306686"
+format: 
+   pdf: 
+    output-file: "Assignment-2-David_Lisovski-18306686"
+    output-ext:  "pdf"
+editor: visual
+---
+
+In this report we analyzed the dublin-bikes.txt dataset. The dataset contains variables concerning bike traffic and weather conditions at locations around Dublin from September 1st 2022 at 12am to August 31st 2023 at 11pm.
+
+Task 1: Data Manipulation
+
+We began by loading in the dataset. We used the library rio to import the dataset and store it as a tibble variable dublinBikes. We also changed the names of weather columns to names that were more meaningful.
+
+{r}
+#| label: load-dataset
+#Question 1
+library(rio) #import
+#Load data
+dublinBikes <- import("dublin-bikes.txt", sep='\t',
+                       setclass='tibble');
+#Rename weather columns
+colnames(dublinBikes)[1:5] <- c("time",
+                                "precipitation",
+                                "temperature",
+                                "wind speed",
+                                "cloud amount");
+#Convert entries with NA to 0
+dublinBikes[is.na(dublinBikes)] <- 0;
+
+The above code chunk loads the dataset and renames weather columns. It also checks for NA entries and makes them 0.
+
+To make sure the code works correctly we looked at the structure of dublinBikes.
+
+{r}
+#| label: structure-dublinBikes
+#Question 2
+str(dublinBikes, strict.width = "cut")
+
+We see in the output of the above code chunk the dataset loaded correctly. The dataset contains 8760 rows and 12 columns. There were several columns stored as Integer types. We converted those columns into Numeric types.
+
+{r}
+#apply as.numeric to all non numeric columns in dublinBikes
+#Question 2
+dublinBikes[,4:12] <- sapply(dublinBikes[,4:12],FUN=as.numeric);
+
+All columns were now Numeric apart from time which was stored as a POSIX (date class). We verified that was the case. We used the library lubridate to make it easier to work with date and times. We loaded the library and used is.timepoint to verify the time column was a date class.
+
+{r}
+#| warning: false
+#| label: check-is-datetime
+#Question 2
+library(lubridate)
+#Check time column is datetime
+is.timepoint(dublinBikes$time)
+
+The code chunk above verified column time was a date class.
+
+The description of cloud amount indicated a categorical variable. In line with that observation we converted the numeric column into an ordered factor. There were 9 values, from 0 to 9 which represented the number of oktas (cloud amount measurement) for a particular hour.
+
+{r}
+#| label: convert-cloud-to-factor
+#Convert 'cloud amount' to factor
+#Question 3
+dublinBikes$`cloud amount` <- factor(x = dublinBikes$`cloud amount`, 
+       levels = sort(unique(dublinBikes$`cloud amount`)),
+       labels = c('0 oktas', '1 okta', '2 oktas',
+                  '3 oktas', '4 oktas', '5 oktas',
+                  '6 oktas', '7 oktas', '8 oktas'),
+       ordered = TRUE);
+
+To make sure the code chunk above converted the column cloud amount to an ordered factor we used is.ordered to check. We also printed the levels and verified there were 9 levels.
+
+{r}
+#| label: verify-ordered-factor
+#Question 3
+#Check 'cloud amount' is an ordered factor
+is.ordered(dublinBikes$`cloud amount`)
+#Output the levels in 'cloud amount'
+levels(dublinBikes$`cloud amount`)
+
+We see in the above code chunk cloud amount is an ordered factor and the number of levels start at '0 oktas' and end at '8 oktas'. There were 9 factors in total.
+
+To make it easier to work with different dates we split the time column into four separate columns; One containing the date (i.e. date only, no time), one containing the month, one containing the day of the week, and one containing the hour.
+
+{r}
+# label: split-datetimes
+#Question 4 + 5
+#Create new columns representative of their names
+dublinBikes$date <- date(dublinBikes$time);
+dublinBikes$hour <- hour(dublinBikes$time);
+dublinBikes$day <- wday(dublinBikes$time, label=TRUE);
+dublinBikes$month <- month(dublinBikes$time,label = TRUE);
+
+The code chunk above creates the four aforementioned columns.
+
+Next, we did a few quick checks to make sure our code does what we assumed it should. First, we made sure there were 24 hours for each date.
+
+{r}
+#Check there are 24 entries for each date
+#Question 4
+all(table(dublinBikes$date == 24))
+
+Next, we checked that there were 365 different dates.
+
+{r}
+#Check there are 365 dates
+#Question 4
+length(dublinBikes$date)/24 == 365
+
+Finally, we checked that day and month columns were ordered factors.
+
+{r}
+#Question 5
+#Check 'day' is an ordered factor
+is.ordered(dublinBikes$day)
+#Check 'month' is an ordered factor
+is.ordered(dublinBikes$month)
+
+With the checks finished we dropped column time from the dataset, as it was redundant, and re-arranged the columns so that date, hour, day of the week, and month were the first four columns of the dataset. We used relocate function from dplyr library to re-arrange the columns.
+
+{r}
+#| warning: false
+#Question 6
+#Load in dplyr library
+library(dplyr)
+#Drop time column
+dublinBikes$time = NULL
+#Re-arrange columns so the first four are date columns 
+dublinBikes <- dublinBikes |> relocate(date, hour, day, month);
+
+With the data manipulation finished we began analyzing the dataset.
+
+Task 2: Analysis
+
+Which Months Had The Total Highest And Total Lowest Precipitaion Amounts?
+
+The dataset contained weather data. We used weather observations to calculate statistics about the weather. ## Computing Highest and Lowest Precipitation Amount. A useful statistics to know, especially for those commuting by bike, is for which month occurs the most precipitation (so as to avoid commuting by bike during this month), and for which month occurs the least precipitation? We computed this statistic by the following steps;
+
+First, we grouped the data by month then calculated the total precipitation for each month. The by function allowed us to simplify the calculations in the first and second part.
+
+{r}
+#Calculate cumulative precipitation per month. Store as variable 'rainByMonth'
+# \(x) sum(x$precipitation) is an anonymous function which calculates the 
+# total precipitation for each given month
+rainByMonth <- by(dublinBikes, dublinBikes$month, (\(x) sum(x$precipitation)));
+
+Second, we computed which months had the maximum and minimum total precipitation.
+
+{r}
+#Find index for month with maximum precipitation 
+Max <- which.max(rainByMonth);
+#Find index for month with mininum precipitation 
+Min <- which.min(rainByMonth);
+
+Finally, we found the month with the maximum amount of precipitation, and minimum amount of precipitation.
+
+{r}
+#Output month with maximum precipitation
+rainByMonth[Max]
+#Output month with minimum precipitation
+rainByMonth[Min]
+
+We found July had the most precipitation with 149.3mm and February the least precipitation with 16.2mm. This seems contrary to the norm. One would expect winter/autumn months to be, on average, wetter than spring/summer months. The data suggests otherwise!
+
+Time Series Plot of Maximum and Minimum Daily Temperatures.
+
+Another variable to consider when commuting by bike is temperature. Biking in the cold is not a pleasant experience so knowing which months are, on average, warm and which months are, on average, cold should help commuters decide whether to commute by bike or by other means. We'll assume we don't know anything about the temperature pattern in Ireland and infer a pattern from a plot.
+
+We created a time series plot of the maximum and minimum daily temperatures. For this, we used two libraries, tidyr, a library for easing the burden of tidying data, and ggplot for plotting.
+
+To create the plot we selected the two columns date and tempearture. Then, we grouped the data by date and found the maximum and minimum temperature for each day. This created two columns for maximum and minimum temperature. We pivoted the columns using pivot_longer to form two other columns; one for the observation (maximum or minimum temperature), and one for the value. Finally, we plotted the two measurements along with their 'smoothed' (average) values.
+
+{r}
+#| warning: false
+#| fig-width: 7
+#| fig-height: 5
+#| label: fig-timeseries-max-min-temp
+#| fig-cap: "Time Series of Maximum & Minimum Daily Temperature"
+library(ggplot2)
+library(tidyr)
+dublinBikes |> 
+  select(date, temperature) |>
+  group_by(date) |> 
+  summarize(maxT= max(temperature), minT = min(temperature)) |>
+  pivot_longer(cols=maxT:minT,
+               names_to="measurement",
+               values_to="value") |>
+  ggplot(aes(x=date, y=value,color = measurement))+
+    geom_line()+
+  geom_smooth()+
+  labs(title="Time Series of Maximum & Minimum Daily Temperature",
+       color="Temperature")+ 
+  ylab("Temperature (degrees C)")+
+  xlab("Date")+
+  scale_color_hue(labels = c("Max Temp", "Min Temp"))
+
+@fig-timeseries-max-min-temp illustrates the time series of maximum and minimum daily temperature. The figure should not be surprising. Ireland has 4 seasons and winter months have, on average, lower maximum and minimum temperatures. The temperature gradually increases until summer/ early autumn where the temperature, on average, is highest. We can see the temperature is mild. On average, the minimum temperature is above 0 degrees C throughout the year and the maximum below 20 degrees C. This mild temperature is caused by the warm North Atlantic Drift which raises sea temperatures and air masses originating and blowing from the west. Coupled with tropical air masses originating and blowing from the south, the climate of Ireland is characterized by mild temperatures and frequent rainfall.
+
+Is There On Average More Rain During The Weekend Compared To The Weekend?
+
+One would expect more cyclists on weekdays during which people commute to school/work compared to weekends. Given that assumption it would be good to know whether or not it's more likely to rain during a weekday, compared to a weekend. We tested this hypothesis by computing the average precipitation for weekdays and weekends and compared the two results. If there was a difference between the groups it should be reflected in the mean.
+
+We will used forcats, a library that makes it easier to work with factors. Specifically, we used fct_collapse to group weekdays and weekends.
+
+{r}
+#| label: tbl-group-by-week
+#| tbl-cap: Table Illustrating Average Bike Volume For Weekdays and Weekends
+#| tbl-colwidths: [60,40]
+library(forcats)
+meanRainByWeek <- dublinBikes |> 
+  mutate(group = fct_collapse(day, weekday = c("Mon","Tue", "Wed", "Thu", "Fri"),
+                            weekend = c("Sat","Sun")),
+         precipitation) |>
+  group_by(day) |>
+  summarize(count = n(),
+            `Avg rain` = mean(precipitation, na.rm=TRUE))
+knitr::kable(meanRainByWeek)
+
+@tbl-group-by-week illustrates the average rain fall for weekdays and weekends. We see on average more rain falls during a weekend compared to a weekday.
+
+Time Series Plot Of The Daily Traffic Volume At Clontarf - James Larkin Rd During October 2022
+
+Now we focused on a subset of the data, specifically October of 2022 at Clontarf - James Larkin Rd. We wanted to test if cloud amount correlated with traffic volume. We tested this hypothesis by plotting daily traffic volume against cloud amount for the subset of the data. The cloud amount observation was based on a categorical variable so we used the mode as a measure of central tendency. R didn't have a mode function so we had to create one.
+
+{r}
+#Custom mode function. Uses 'table' to compute a frequency table
+#and returns the element with maximum count
+Mode <- function(x) {
+  t <- table(x)
+  names(t)[which.max(t)]
+}
+
+We tested our mode function by comparing a frequency table of the cloud amount for October 2022, from which we read off the largest count, and the output of our Mode function.
+
+{r}
+#| label: tbl-oktaTable
+#| tbl-cap: Table Illustrating The Count Of Oktas For Each Hour and Day In October
+#| tbl-colwidths: [60,40]
+oktaTable <- as_tibble(table(dublinBikes[dublinBikes$month=='Oct' & 
+                                                year(dublinBikes$date)==2022,
+                                         'cloud amount']));
+oktaTable <- oktaTable |>
+  pivot_wider(names_from=`cloud amount`, 
+                values_from = `n`);
+knitr::kable(oktaTable)
+
+@tbl-oktaTable illustrates the count of cloud amounts for October 2022. The most frequent cloud amount is '7 oktas'. We then compared the result with the output of our mode function.
+
+{r}
+Mode(dublinBikes[dublinBikes$month=='Oct' & year(dublinBikes$date)==2022,'cloud amount'])
+
+The code chunk above shows our mode function correctly outputted '7 oktas'.
+
+Finally, we plotted the data using our mode function.
+
+{r}
+#| fig-width: 7
+#| fig-height: 5
+#| label: fig-timeseries-bike-james-larkin
+#| fig-cap: "Timeseries Of Bike Volume For October 2022 At James Larkin Rd"
+dublinBikes |>
+  filter(year(date)==2022 & month=="Oct")|>
+  select(date, month, 
+         bikes = `Clontarf - James Larkin Rd`, 
+         `cloud amount`, day) |>
+  group_by(date) |>
+  summarize(cloud = Mode(`cloud amount`), `daily traffic` = sum(bikes)) |>
+  ggplot(aes(x=date, y=`daily traffic`, color=cloud))+
+    geom_point()+
+    geom_line(aes(group = cloud))+
+    labs(title="Timeseries Of Bike Volume For October 2022 At James Larkin Rd",
+         color="Cloud Amount",)+ 
+    ylab("Bike Volume")+
+    xlab("Date")+
+    scale_color_manual(values = c("0 okta" = "green",
+                                  "1 oktas" = "blue",
+                                  "2 oktas" = "orange",
+                                  "3 oktas" = "purple",
+                                  "4 oktas" = "red",
+                                  "5 oktas" = "pink",
+                                  "6 oktas" = "yellow",
+                                  "7 oktas" = "black",
+                                  "8 oktas" = "magenta"))
+
+@fig-timeseries-bike-james-larkin illustrates a time series plot of bike volume for October 2022 at James Larkin Rd, colour coded by the mode of cloud amount each day. There does not seem to be any relationship between daily traffic volume and cloud amount. The most common cloud amount for October 2022 was '7 oktas' which is categorized as 'cloudy'. This was the most common okta measurement for October but the bike volume doesn't follow any discernible pattern indicating no relationship between bike volume and cloud amount.
+
+Task 3: Creativity
+
+Does Wind Speed Impact Bike Volume?
+
+We tested if wind has an impact on commuting. We focused on commuting days and hours, those being Monday-Friday from 7am-9am and from 4pm-7pm. We will created a table illustrating the average bike volume per hour for each category of wind, categorized by the Beaufort Scale, across all locations.
+
+The Beaufort scale is an empirical measure that relates wind speed to observed conditions at sea or on land. The initial scale has 13 classes which range from 'Calm' - a Beaufort number of 1, to Hurricane-force - a Beaufort number of 12.
+
+We outline how the table was created.
+
+We selected rows using the filter function which corresponded to commuting days and hours (Monday-Friday, 7am-9am and 4pm-7pm).
+
+{r}
+#Select rows that correspond to rush-hour times.
+avgBikeVByCloud <- dublinBikes |> 
+  filter((hour > 6 & hour < 10) | 
+         (hour > 15 & hour < 20) | 
+         !(date %in% c('Sat','Sun')));
+
+For our analysis we only needed wind speed and location columns. We removed all columns except wind speed and locations. We used the select function to select columns wind speed, Griffith Avenue (both streets), Grove Road Totam, Richmond Street Cyclists (1 and 2), and Clontarf (both roads).
+
+{r}
+#Select columns that correspond to wind speed, and locations
+avgBikeVByCloud <- avgBikeVByCloud |>
+  select(`wind speed`, starts_with('G'), 
+         starts_with('Richmond'), starts_with('Clontarf'));
+
+Then, we converted wind speeds into their corresponding Beaufort scale numbers. We converted wind speed to an ordered factor with levels corresponding to the Beaufort scale values. We used cut to categorize the wind speed. We merged the bike volumes at Griffith Avenue Lane Side and Clare Rd Side into one column, Richmond Street Cyclists 1 and 2 into one column, and Clontarf - James Larkin Rd and Pebble Beach Carpark into one column. We used mutate to create these new columns.
+
+{r}
+  avgBikeVByCloud <- avgBikeVByCloud |> 
+    mutate('wind speed' = cut(`wind speed`, 
+                               breaks = c(-1,1,3,6,10,16,21,27,33,40,47,55),
+                               labels = c("Calm","Light Air",
+                                          "Light Breeze","Gentle Breeze",
+                                          "Moderate Breeze","Fresh Breeze",
+                                          "Strong Breeze", "Near Gale", 
+                                          "Gale", "Strong Gale", "Storm"),
+                              ordered_result=TRUE),
+          'Griffith Avenue' = `Griffith Avenue (Lane Side)`+
+                              `Griffith Avenue (Clare Rd Side)`,
+          'Richmond Street' = `Richmond Street Cyclists 2`+
+                              `Richmond Street Cyclists 1`,
+          'Clontarf' = `Clontarf - James Larkin Rd`+
+                       `Clontarf - Pebble Beach Carpark`);
+
+After converting the wind speeds and merging the locations, we computed the mean for each location for each Beaufort scale category. We grouped our dataframe by wind speed category then calculated the mean bike volume for each location.
+
+{r}
+  avgBikeVByCloud <- avgBikeVByCloud |> 
+    group_by(`wind speed`) |>
+    summarise('Griffith Avenue' = mean(`Griffith Avenue`),
+              'Richmond Street' = mean(`Richmond Street`),
+              'Grove Road Totam' = mean(`Grove Road Totem`),
+              'Clontarf' = mean(Clontarf));
+
+Finally, we pivoted the dataframe to convert the location columns to two columns; one that contained the locations location, and one that contained the bike volumes bikes. We pivoted again along wind speed to convert the rows (Beaufort scale categories) to columns. The values in the those columns came from bikes.
+
+{r}
+  avgBikeVByCloud <- avgBikeVByCloud |>
+    pivot_longer(`Griffith Avenue`:`Clontarf`, 
+                 names_to='location',
+                 values_to = 'bikes') |>
+    pivot_wider(names_from=`wind speed`, 
+                values_from = `bikes`);
+
+Finally, the results were tabulated.
+
+{r}
+#| label: tbl-beaufort
+#| tbl-cap: Table Illustrating Average Bike Volume For Each Beaufort Scale Value
+#| tbl-colwidths: [60,40]
+knitr::kable(avgBikeVByCloud)
+
+@tbl-beaufort illustrates the average bike volume for each location and each Beaufort scale value. We found the maximum average bike volume occurred during 'Moderate Breeze' with a decrease in bike volume as the wind speed increased and decreased The minimum average bike volume occurred during 'Calm' weather. The table does suggest wind speed effects bike volume during commuting times.
+
+Which Hours Had The Most Bike Volumes?
+
+We tested which hours of the day during summer (2022 and 2023) the most bike volume occurred. Our test was a histogram plot illustrating the average bike volume per hour during summer for each location.
+
+We outline how the plot was created.
+
+First, we selected rows using the filter function which corresponded to summer months (June, July, August).
+
+{r}
+hourlyBikesDB <- dublinBikes |>
+  filter(month %in% c('Jun','Jul','Aug') );
+
+Second, we merged the bike volumes at Griffith Avenue Lane Side and Clare Rd Side into one column, Richmond Street Cyclists 1 and 2 into one column, and Clontarf - James Larkin Rd and Pebble Beach Carpark into one column. We used mutate to create these new columns.
+
+{r}
+ hourlyBikesDB <- hourlyBikesDB |>
+  mutate('Griffith Avenue' = `Griffith Avenue (Lane Side)`+
+                             `Griffith Avenue (Clare Rd Side)`,
+         'Richmond Street' = `Richmond Street Cyclists 2`+
+                             `Richmond Street Cyclists 1`,
+         'Clontarf' = `Clontarf - James Larkin Rd`+
+                      `Clontarf - Pebble Beach Carpark`)
+
+Third, we grouped the data by hour and found the mean bike volume for each location for each hour.
+
+{r}
+ hourlyBikesDB <- hourlyBikesDB |>
+  group_by(hour) |>
+  summarise('Griffith Avenue' = mean(`Griffith Avenue`),
+            'Richmond Street' = mean(`Richmond Street`),
+            'Grove Road Totam' = mean(`Grove Road Totem`),
+            'Clontarf' = mean(Clontarf))
+
+Fourth, we pivoted the dataframe to convert the location columns to two columns; one that contained the locations location, and one that contained the bike volumes bikes.
+
+{r}
+ hourlyBikesDB <- hourlyBikesDB |>
+    pivot_longer(`Griffith Avenue`:`Clontarf`, names_to='location',
+               values_to = 'bikes')
+
+Finally, we plotted the dataset.
+
+{r}
+#| fig-width: 7
+#| fig-height: 5
+#| label: fig-timeseries-bike
+#| fig-cap: "Time series histogram of Bike Volume per hour during summer for each location"
+    hourlyBikesDB |>
+      ggplot(aes(x=hour,y=bikes, fill=location))+
+        geom_col()+
+        labs(title="Time series histogram of Bike Volume per hour during summer",
+             fill="Location")+ 
+        ylab("Volume of Bikes")+
+        xlab("Hour")+
+        scale_x_continuous(breaks = seq(1,24,by=2))
+
+@fig-timeseries-bike illustrates the time series plot of bike volume for summer months at all locations. We can see hours 1 to 4 had the lowest cumulative bike volume. Hours 8 and 17 had the highest cumulative bike volumes. The plot suggests bike volume is largest during commuting times (7am-9am and 4pm-7pm).
